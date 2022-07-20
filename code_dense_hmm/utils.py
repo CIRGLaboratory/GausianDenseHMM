@@ -235,6 +235,11 @@ def empirical_coocs(seqs, m, lengths=None):
 def cooc_loss(x, y):
     return np.mean(np.abs(y-x))
     
-    
+
+def iter_from_X_lengths():
+    return range(100)
+
+def  check_is_fitted():
+    return False
     
     

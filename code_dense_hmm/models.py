@@ -1,10 +1,14 @@
 from hmmlearn.hmm import MultinomialHMM
-from hmmlearn.base import ConvergenceMonitor, iter_from_X_lengths, log_mask_zero, check_is_fitted, check_array#_utils
+from hmmlearn.base import ConvergenceMonitor, log_mask_zero, check_array
 import tensorflow as tf
 import numpy as np
 
-from hmmc import _hmmc as _hmmcmod #mod
-from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, empirical_coocs
+import pyximport
+pyximport.install()
+
+from hmmc import _hmmc as _hmmcmod
+from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, empirical_coocs, \
+    iter_from_X_lengths, check_is_fitted
 
 import time
 
