@@ -4,7 +4,9 @@ import tensorflow as tf
 import numpy as np
 
 import pyximport
-pyximport.install()
+pyximport.install(setup_args={
+    "module_list": "./_hmmcmod.pyx",
+    "include_dirs": np.get_include()})
 
 from hmmc import _hmmc as _hmmcmod
 from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, empirical_coocs, \
