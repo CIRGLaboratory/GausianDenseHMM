@@ -10,7 +10,7 @@ import copy
 import numpy as np
 
 
-""" Initializes a StandardHMM and a DenseHMM and fits given data to it
+""" Initializes a StandarGaussiandHMM and a GaussianDenseHMM and fits given data to it
 """
 def _standard_vs_dense(train_X, test_X, standard_params=None, dense_params=None, gt_AB=None):
     
@@ -111,7 +111,7 @@ def _parse_syntheticgt_parameters(exp_params, path_dict):
     exp_params['n_seqs_test'] = dict_get(exp_params, 'n_seqs_test', default=10, cast=int)
     exp_params['seqlen_test'] = dict_get(exp_params, 'seqlen_test', default=10, cast=int)
     exp_params['gt_stationary'] = dict_get(exp_params, 'gt_stationary', default=False)
-    exp_params['gt_params']['n_observables'] = exp_params['n_emissions']
+    exp_params['gt_params']['n_dims'] = exp_params['n_emissions']
     
     # Making sure the initializer returns stationary pi (if gt_stationary = true)...
     init_params = dict_get(exp_params['gt_params'], 'init_params', default=None)
@@ -156,15 +156,15 @@ def _parse_standard_and_dense(exp_params, path_dict, n_emissions):
     exp_params['n_emissions'] = n_emissions
     
     # Number of emissions must be the same for all models
-    exp_params['standard_params']['n_observables'] = n_emissions
-    exp_params['dense_params']['n_observables'] = n_emissions
+    exp_params['standard_params']['n_dims'] = n_emissions
+    exp_params['dense_params']['n_dims'] = n_emissions
     
     # Set opt_schemes that are needed
     exp_params['dense_params']['opt_schemes'] = exp_params['dense_opt_schemes']
     
     # Setup fair standard hmm
     if exp_params['compare_to_fair_standard']:
-        # TODO check l_uz = l_vw
+        # TODO check l_uz = l_musigma
         n_dense, l_dense = exp_params['dense_params']['n_hidden_states'], exp_params['dense_params']['mstep_config']['l_uz'] 
         n_fair = _compute_fair_standard_n(exp_params['n_emissions'], n_dense, l_dense)
         exp_params['fair_standard_params'] = copy.deepcopy(exp_params['standard_params'])
@@ -199,7 +199,7 @@ def _parse_standard_and_dense(exp_params, path_dict, n_emissions):
 def _sample_sequences_from_gt_hmm(exp_params, path_dict, gt_hmm=None, sample_retries=100):
     
     t = Timer()
-    n_emissions = exp_params['gt_params']['n_observables']
+    n_emissions = exp_params['gt_params']['n_dims']
     
     if gt_hmm is None:
         gt_hmm = StandardHMM(**exp_params['gt_params'])

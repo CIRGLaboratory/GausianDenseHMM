@@ -45,7 +45,7 @@ def _l(exp_params):
     mstep_config = dict_get(dense_params, 'mstep_config', default=None, cast=dict)
     if mstep_config is not None:
         l_uz = dict_get(mstep_config, 'l_uz', default=None, cast=int)
-        l_vw = dict_get(mstep_config, 'l_vw', default=None, cast=int)
+        l_vw = dict_get(mstep_config, 'l_musigma', default=None, cast=int)
         
         l = np.array([l_ for l_ in (l_uz, l_vw) if l_ is not None])
         if len(l) == 0:
@@ -119,7 +119,7 @@ def load_exp_params(exp_dir):
 
 
 label_dict = {'standard': ['EM_loss', 'EM_loss_pi', 'EM_loss_A', 'EM_loss_B'], 'dense': ['EM_loss', 'EM_loss_pi', 'EM_loss_pi_norm', 'EM_loss_A', 'EM_loss_A_norm', 'EM_loss_B', 'EM_loss_B_norm']}
-model_label = {'dense': 'DenseHMM', 'standard': 'Standard HMM'}
+model_label = {'dense': 'GaussianDenseHMM', 'standard': 'Standard HMM'}
 def plot_loss_and_loglike(exp_params, model, verbose=False):
     
     t = Timer()
@@ -195,16 +195,16 @@ def plot_loss_and_loglike(exp_params, model, verbose=False):
                 fair_standard_loglikes = -np.array(data_fair_standard['loglike'])
                 print("Final loglikelihood (Fair standard): %.5f" % float(fair_standard_loglikes[-1]))
                 #fair_standard_loglikes = -fair_standard_loglikes[fair_standard_loglikes != None]
-                plt.plot(fair_standard_loglikes, label='Fair StandardHMM loglike')
+                plt.plot(fair_standard_loglikes, label='Fair StandarGaussiandHMM loglike')
         
             if data_fair_standard['train_losses'] is not None:
                 fair_standard_train_losses = np.array(data_fair_standard['train_losses'])
                 if len(fair_standard_train_losses.shape) == 1:
-                    plt.plot(fair_standard_train_losses, label='Fair StandardHMM EM-loss')
+                    plt.plot(fair_standard_train_losses, label='Fair StandarGaussiandHMM EM-loss')
                 elif len(fair_standard_train_losses.shape) != 2:
                     raise Exception('Given train losses (standard fair) have unsupported shape: %s' % str(fair_standard_train_losses.shape))
                 else:
-                     plt.plot(fair_standard_train_losses[:, 0], label='Fair StandardHMM EM-loss')
+                     plt.plot(fair_standard_train_losses[:, 0], label='Fair StandarGaussiandHMM EM-loss')
            
         t.toc("Plotted data")
     #print('Data successfully read for model %s (n_em: %d). None entries: loglikes: %d, val_loglikes: %d, train_losses %d, test_losses: %d, test_gamma_losses: %d ' % (model, n_em, count_none(loglikes), count_none(val_loglikes), count_none(train_losses), count_none(test_losses), count_none(test_gamma_losses)))
@@ -309,7 +309,7 @@ def _plot_cooccurences(train_coocs, test_coocs, synth_coocs, standard_coocs, den
         plt.ylim([1e-10, 1.5])
         
         plt.xlabel('GT cooc')
-        plt.ylabel('HMM/DenseHMM cooc')
+        plt.ylabel('HMM/GaussianDenseHMM cooc')
         plt.title(seq_nml_str + title_str)
         plt.legend()
         fig = plt.gcf()

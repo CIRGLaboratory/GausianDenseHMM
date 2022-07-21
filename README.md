@@ -1,16 +1,16 @@
-# DenseHMM
+# GaussianDenseHMM
 
-DenseHMM is a modification of Hidden Markov Models (HMMs) that allows to learn dense vector representations of both the hidden states and the observables via gradient-descent methods. The code accompanies our paper ["DenseHMM: Learning Hidden Markov Models by Learning Dense Representations"](https://arxiv.org/abs/2012.09783) and allows to reproduce the results therein.
+GaussianDenseHMM is a modification of Hidden Markov Models (HMMs) that allows to learn dense vector representations of both the hidden states and the observables via gradient-descent methods. The code accompanies our paper ["GaussianDenseHMM: Learning Hidden Markov Models by Learning Dense Representations"](https://arxiv.org/abs/2012.09783) and allows to reproduce the results therein.
 
 ## Overview
 
-* DenseHMM uses a parameter-efficient, non-linear matrix factorization to describe transition probabilities of HMMs.
+* GaussianDenseHMM uses a parameter-efficient, non-linear matrix factorization to describe transition probabilities of HMMs.
 * Two approaches for model training: a) EM-optimization with a gradient-based M-step or b) direct optimization of observation co-occurrences, which provides better scalability compared to EM-based multi-step schemes.
 * Competitive model performance in extensive empirical evaluations.
 
 #### Baselines
 
-DenseHMM is compared to various hidden Markov models. We base our code on the [hmmlearn](https://github.com/hmmlearn/hmmlearn) library.
+GaussianDenseHMM is compared to various hidden Markov models. We base our code on the [hmmlearn](https://github.com/hmmlearn/hmmlearn) library.
 
 ## Installation
 
@@ -52,7 +52,7 @@ We downloaded the RCSB PDB protein sequences in October 2019 from https://www.rc
 - The following files contain the source for running the experiments of section 5:
   - `data.py` (data pre-processing),
   - `experiment.py` (parses experiment parameters, starts experiments),
-  - `models.py` (standard HMM and DenseHMM models),
+  - `models.py` (standard HMM and GaussianDenseHMM models),
   - `utils.py` (various utility functions used throughout the package),
   - `hmmc/_hmmc.c` (from hmmlearn, function for the E-step was modified to log additional data),
   - `start_protein_experiment.ipynb`,
@@ -94,13 +94,13 @@ Matrix fit experiment usually takes less than 34 h.
 Penn Treebank training:
 
 - Training a standard HMM usually takes less than 4 min.
-- Training a DenseHMM in cooc mode usually takes less than 2 min.
-- Training a DenseHMM in EM mode usually takes less than 6 min.
+- Training a GaussianDenseHMM in cooc mode usually takes less than 2 min.
+- Training a GaussianDenseHMM in EM mode usually takes less than 6 min.
 - A single experiment usually takes less than 16 min.
 - Whole experiment run (100 experiments) usually takes less than 27 h.
 
 Protein training:
-- Fitting a DenseHMM model in EM mode usually takes less than 12 min.
+- Fitting a GaussianDenseHMM model in EM mode usually takes less than 12 min.
 - Fitting a dense cooc model in cooc mode usually takes less than 1 min.
 - Fitting standard HMM models usually takes less than 8 min.
 - A single experiment run usually takes less than 30 min.
@@ -108,22 +108,22 @@ Protein training:
 
 Synthetic training:
 - Fitting the standard HMM models usually takes less than 20 s.
-- Fitting the DenseHMM models usually takes less than 40 s.
+- Fitting the GaussianDenseHMM models usually takes less than 40 s.
 - A single experiment usually takes less than 2 min.
 - Whole experiment run (100 experiments) usually takes less than 4 h.
 
 ## License
 
-DenseHMM is released under the MIT license.
+GaussianDenseHMM is released under the MIT license.
 
-## Citing DenseHMM
+## Citing GaussianDenseHMM
 
-If you use or reference DenseHMM in your research, please use the following BibTeX entry.
+If you use or reference GaussianDenseHMM in your research, please use the following BibTeX entry.
 
 ```BibTeX
 @article{densehmm,
 author = {Joachim Sicking and Maximilian Pintz and Maram Akila and Tim Wirtz},
-title = {DenseHMM: Learning Hidden Markov Models by Learning Dense Representations},
+title = {GaussianDenseHMM: Learning Hidden Markov Models by Learning Dense Representations},
 journal = {NeurIPS 2020 Workshop on Learning Meaningful Representations of Life (LMRL)}
 year = {2020}
 }

@@ -1,3 +1,5 @@
+import warnings
+
 from sklearn.utils import check_array, check_random_state
 import numpy as np
 import os
@@ -147,6 +149,28 @@ def check_arr(X, lengths=None):
         n_seqs = len(lengths)
         max_seqlen = max(lengths) 
     
+    return X, n_seqs, max_seqlen
+
+
+def check_arr_gaussian(X, lengths=None):
+    X = check_array(X)
+
+    # if X.shape[-1] != 1:
+    #     raise Exception("Sequences of vectors are currently not supported. Please map each vector to an integer value")
+
+    # A sequence in the form of [[o1],[o2],...] has to be given
+    if len(X.shape) != 2:
+        raise Exception("Sequence array X must be of dimension 2")
+
+    n_seqs = 1
+    if lengths is None:
+        max_seqlen = X.shape[0]
+    else:
+        if X.shape[0] != np.sum(lengths):
+            raise Exception("Number of elements in given sequence matrix does not match given lengths array")
+        n_seqs = len(lengths)
+        max_seqlen = max(lengths)
+
     return X, n_seqs, max_seqlen
 
 """ Pads first dimension of X to the right: returns pad_X, such that pad_X.shape = (seqlen, pad_X.shape[1]) """

@@ -1,4 +1,4 @@
-name: dense_hmm
+name: dense-hmm
 channels:
   - conda-forge
   - defaults
