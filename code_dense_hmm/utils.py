@@ -236,10 +236,27 @@ def cooc_loss(x, y):
     return np.mean(np.abs(y-x))
     
 
-def iter_from_X_lengths():
-    return range(100)
+def iter_from_X_lengths(X, lengths):
+    warnings.warn(
+        "iter_from_X_lengths is deprecated and will be removed in the future.",
+        DeprecationWarning, stacklevel=2)
+    if lengths is None:
+        yield 0, len(X)
+    else:
+        n_samples = X.shape[0]
+        end = np.cumsum(lengths).astype(np.int32)
+        start = end - lengths
+        if end[-1] > n_samples:
+            raise ValueError(
+                f"more than {n_samples} samples in lengths array {lengths}")
+        for i in range(len(lengths)):
+            yield start[i], end[i]
 
-def  check_is_fitted():
-    return False
-    
+# Adapted from scikit-learn 0.21.
+def check_is_fitted(estimator, attribute):
+    if not hasattr(estimator, attribute):
+        raise NotFittedError(
+            "This %s instance is not fitted yet. Call 'fit' with "
+            "appropriate arguments before using this method."
+            % type(estimator).__name__)
     

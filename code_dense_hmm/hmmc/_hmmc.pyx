@@ -156,3 +156,4 @@ def _viterbi(int n_samples, int n_components,
             state_sequence[t] = where_from = _argmax(work_buffer)
 
     return np.asarray(state_sequence), logprob
+

@@ -11,7 +11,6 @@ import numpy as np
 
 
 """ Initializes a StandardHMM and a DenseHMM and fits given data to it
-    
 """
 def _standard_vs_dense(train_X, test_X, standard_params=None, dense_params=None, gt_AB=None):
     

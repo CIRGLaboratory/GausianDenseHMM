@@ -2,7 +2,6 @@ from utils import Timer, timestamp_msg
 import numpy as np
 import os
 import gzip
-
 import nltk
 
 DATA_DIR = './data'
@@ -101,8 +100,8 @@ def penntreebank_tag_sequences(thresh=0.1, len_cut=None):
     
     pruned_symb_to_tag, pruned_tag_to_symb, low_freq_symbol = _map_low_freq_symbs_to_rest_symb(sequences, symb_to_tag, tag_to_symb, thresh)
     
-    pruned_sequences = [np.array([ [pruned_tag_to_symb[tag]] for tag in tag_seq]) for tag_seq in tag_seqs]
-        
+    pruned_sequences = [np.array([[pruned_tag_to_symb[tag]] for tag in tag_seq]) for tag_seq in tag_seqs]
+    # t.toc(pruned_sequences)
     t.toc("Loaded tag sequences. "
           "Number of words: %d, Number of sentences: %d, Number of symbols: %d" % (len(tagged_words), len(tagged_sents), low_freq_symbol+1))
 

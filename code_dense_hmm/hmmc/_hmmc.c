@@ -606,7 +606,9 @@ static CYTHON_INLINE float __PYX_NAN() {
 #define __PYX_HAVE__hmmlearn_dense___hmmc
 #define __PYX_HAVE_API__hmmlearn_dense___hmmc
 /* Early includes */
-#include "numpy/npy_math.h"
+#include <numpy/npy_math.h>
+//#include <numpy/npy_common.h>
+//#include <npy_config.h>
 #include "pythread.h"
 #include <string.h>
 #include <stdlib.h>
@@ -697,7 +699,7 @@ static CYTHON_INLINE size_t __Pyx_Py_UNICODE_strlen(const Py_UNICODE *u) {
 }
 #define __Pyx_PyUnicode_FromUnicode(u)       PyUnicode_FromUnicode(u, __Pyx_Py_UNICODE_strlen(u))
 #define __Pyx_PyUnicode_FromUnicodeAndLength PyUnicode_FromUnicode
-#define __Pyx_PyUnicode_AsUnicode            PyUnicode_AsUnicode
+#define __Pyx_PyUnicode_AsWideChar            PyUnicode_AsWideChar
 #define __Pyx_NewRef(obj) (Py_INCREF(obj), obj)
 #define __Pyx_Owned_Py_None(b) __Pyx_NewRef(Py_None)
 static CYTHON_INLINE PyObject * __Pyx_PyBool_FromLong(long b);
@@ -2368,7 +2370,7 @@ static CYTHON_INLINE __pyx_t_14hmmlearn_dense_5_hmmc_dtype_t __pyx_f_14hmmlearn_
  *     if isinf(a) and a < 0:
  *         return b
  */
-
+npy_longdouble npy_fabsl(npy_longdouble x);
 static CYTHON_INLINE __pyx_t_14hmmlearn_dense_5_hmmc_dtype_t __pyx_f_14hmmlearn_dense_5_hmmc__logaddexp(__pyx_t_14hmmlearn_dense_5_hmmc_dtype_t __pyx_v_a, __pyx_t_14hmmlearn_dense_5_hmmc_dtype_t __pyx_v_b) {
   __pyx_t_14hmmlearn_dense_5_hmmc_dtype_t __pyx_r;
   int __pyx_t_1;
@@ -17096,9 +17098,9 @@ static void __pyx_tp_dealloc_array(PyObject *o) {
   {
     PyObject *etype, *eval, *etb;
     PyErr_Fetch(&etype, &eval, &etb);
-    ++Py_REFCNT(o);
+    Py_SET_REFCNT(o, Py_REFCNT(o)+1);
     __pyx_array___dealloc__(o);
-    --Py_REFCNT(o);
+    Py_SET_REFCNT(o, Py_REFCNT(o)-1);
     PyErr_Restore(etype, eval, etb);
   }
   Py_CLEAR(p->mode);
@@ -17391,9 +17393,9 @@ static void __pyx_tp_dealloc_memoryview(PyObject *o) {
   {
     PyObject *etype, *eval, *etb;
     PyErr_Fetch(&etype, &eval, &etb);
-    ++Py_REFCNT(o);
+    Py_SET_REFCNT(o, Py_REFCNT(o)+1);
     __pyx_memoryview___dealloc__(o);
-    --Py_REFCNT(o);
+    Py_SET_REFCNT(o, Py_REFCNT(o)-1);
     PyErr_Restore(etype, eval, etb);
   }
   Py_CLEAR(p->obj);
@@ -17633,9 +17635,9 @@ static void __pyx_tp_dealloc__memoryviewslice(PyObject *o) {
   {
     PyObject *etype, *eval, *etb;
     PyErr_Fetch(&etype, &eval, &etb);
-    ++Py_REFCNT(o);
+    Py_SET_REFCNT(o, Py_REFCNT(o)+1);
     __pyx_memoryviewslice___dealloc__(o);
-    --Py_REFCNT(o);
+    Py_SET_REFCNT(o, Py_REFCNT(o)-1);
     PyErr_Restore(etype, eval, etb);
   }
   Py_CLEAR(p->from_object);
@@ -20860,6 +20862,7 @@ static void __pyx_insert_code_object(int code_line, PyCodeObject* code_object) {
 #include "compile.h"
 #include "frameobject.h"
 #include "traceback.h"
+
 static PyCodeObject* __Pyx_CreateCodeObjectForTraceback(
             const char *funcname, int c_line,
             int py_line, const char *filename) {

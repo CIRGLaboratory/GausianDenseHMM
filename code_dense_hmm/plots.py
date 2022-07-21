@@ -37,6 +37,7 @@ def _n_seqs_seqlen(exp_params, default_n_seqs_train=None, default_seqlen_train=N
         
     return n_seqs, seqlen, n_seqs_train, seqlen_train, n_seqs_test, seqlen_test
 
+
 def _l(exp_params):
     
     l = None

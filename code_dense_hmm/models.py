@@ -1,14 +1,17 @@
-from hmmlearn.hmm import MultinomialHMM
+from hmmlearn.hmm import MultinomialHMM, GaussianHMM
 from hmmlearn.base import ConvergenceMonitor, log_mask_zero, check_array
 import tensorflow as tf
 import numpy as np
 
-import pyximport
-pyximport.install(setup_args={
-    "module_list": "./_hmmcmod.pyx",
-    "include_dirs": np.get_include()})
+# from pathlib import  Path
+# from Cython.Build import cythonize
+# import pyximport
+# pyximport.install(setup_args={"ext_modules": cythonize(f"{Path(__file__).parent.resolve()}/hmmc/_hmmc.pyx", include_path=[np.get_include()]),
+#                               "include_dirs": [np.get_include()]})
+# from hmmc import _hmmc as _hmmcmod
 
-from hmmc import _hmmc as _hmmcmod
+from hmmlearn import _hmmc as _hmmcmod
+
 from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, empirical_coocs, \
     iter_from_X_lengths, check_is_fitted
 
@@ -154,8 +157,9 @@ class GammaMultinomialHMM(MultinomialHMM):
         # emissionprob_ to randomly chosen distributions
         # and sets self.n_features to the number of unique symbols in X
         # and checks that X are samples of a multinomial distribution
-        super(GammaMultinomialHMM, self)._init(X, lengths=lengths)
-        
+        # super(GammaMultinomialHMM, self)._init(X, lengths=lengths)
+        super(GammaMultinomialHMM, self)._init(X)
+
         if self.n_observables is None:
             self.n_observables = self.n_features
         elif self.n_features != self.n_observables:
@@ -594,7 +598,7 @@ class DenseHMM(GammaMultinomialHMM):
         # Only needed for EM optimization
         self.em_epochs = dict_get(mstep_config, 'em_epochs', default=10)
         self.em_lr = dict_get(mstep_config, 'em_lr', default=0.1) # TODO: Actually only need em_optimizer
-        self.em_optimizer = dict_get(mstep_config, 'em_optimizer', default=tf.train.GradientDescentOptimizer(self.em_lr))
+        self.em_optimizer = dict_get(mstep_config, 'em_optimizer', default=tf.compat.v1.train.GradientDescentOptimizer(self.em_lr))
         self.scaling = dict_get(mstep_config, 'scaling', default=n_hidden_states)
         self.gamma, self.bar_gamma, self.bar_gamma_pairwise = None, None, None # Placeholders
         self.tilde_O, self.tilde_O_ph = None, None # Input sequence
@@ -603,7 +607,7 @@ class DenseHMM(GammaMultinomialHMM):
         
         # Only needed for cooc optimization
         self.cooc_lr = dict_get(mstep_config, 'cooc_lr', default=0.01) # TODO actually only need optimizer
-        self.cooc_optimizer = dict_get(mstep_config, 'cooc_optimizer', default=tf.train.GradientDescentOptimizer(self.cooc_lr))
+        self.cooc_optimizer = dict_get(mstep_config, 'cooc_optimizer', default=tf.compat.v1.train.GradientDescentOptimizer(self.cooc_lr))
         self.cooc_epochs = dict_get(mstep_config, 'cooc_epochs', default=10000)
         self.loss_cooc, self.loss_cooc_update = None, None 
         self.A_stationary = None 
@@ -994,6 +998,443 @@ class DenseHMM(GammaMultinomialHMM):
     
     def get_representations(self):
         return self.session.run([self.u, self.v, self.w, self.z, self.z0])
+
+
+class GammaGaussianHMM(GaussianHMM):
+    """ Base class for Hidden Markov Model of hmmlearn extended for computing all gamma values and logging """
+
+    def __init__(self, n_hidden_states=1, n_observables=None,
+                 covariance_type='diag', min_covar=0.001,
+                 startprob_prior=1.0, transmat_prior=1.0,
+                 random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
+                 params="ste", init_params="ste", logging_monitor=None):
+
+        self.matrix_initializer = None
+        if init_params is None:
+            init_params = "stmc"
+        elif callable(init_params):
+            self.matrix_initializer = init_params
+            init_params = ''
+
+        super(GammaGaussianHMM, self).__init__(n_components=n_hidden_states,
+                                               covariance_type=covariance_type,
+                                               min_covar=min_covar,
+                                               startprob_prior=startprob_prior,
+                                               transmat_prior=transmat_prior,
+                                               means_prior=means_prior,
+                                               means_weight=means_weight,
+                                               covars_prior=covars_prior,
+                                               covars_weight=covars_weight,
+                                               algorithm="viterbi",
+                                               random_state=random_state,
+                                               n_iter=em_iter,
+                                               tol=convergence_tol,
+                                               verbose=verbose,
+                                               params=params,
+                                               init_params=init_params,
+                                               implementation='log')
+
+        self.n_observables = n_observables
+        self.logging_monitor = logging_monitor if logging_monitor is not None else HMMLoggingMonitor()
+
+        if self.matrix_initializer is not None and self.n_observables is not None:
+            self._init_matrices_using_initializer(self.matrix_initializer)
+
+    def _init_gammas(self, n_seqs, max_seqlen):
+        gamma = np.zeros((n_seqs, max_seqlen, self.n_components))
+        bar_gamma = np.zeros((max_seqlen, self.n_components))
+        gamma_pairwise = np.zeros((n_seqs, max_seqlen - 1, self.n_components, self.n_components))
+        bar_gamma_pairwise = np.zeros((max_seqlen - 1, self.n_components, self.n_components))
+        return gamma, bar_gamma, gamma_pairwise, bar_gamma_pairwise
+
+    def _initialize_sufficient_statistics(self, n_seqs, max_seqlen):
+        """ Initialize a dictionary holding:
+
+            - nobs: int; Number of samples in the data processed so far
+            - start: array, shape (n_hidden_states,);
+                     An array where the i-th element corresponds to the posterior
+                     probability of the first sample being generated by the i-th
+                     state.
+            - trans: array, shape (n_hidden_states, n_hidden_states);
+            An array where the (i, j)-th element corresponds to the
+            posterior probability of transitioning between the i-th to j-th
+            states.
+            - obs: array, shape (n_hidden_states, n_observables);
+            An array where the (i, j)-th element corresponds to the ...
+
+            - max_seqlen: int; Maximum sequence length in given data
+            - n_seqs: int; Number of sequences in given data
+            - gamma: array, shape (n_seqs, max_seqlen, n_hidden_states);
+            The posterior probabilities w.r.t. every observation sequence
+            - bar_gamma: array, shape (n_seqs, max_seqlen, n_hidden_states);
+            Cumulative posterior probabilities (Sum of gamma over first dimension)
+            - gamma_pairwise: array, shape (n_seqs, max_seqlen-1, n_hidden_states, n_hidden_states);
+            Pairwise gamma terms over all observation sequences and times
+            - bar_gamma_pairwise: array, shape (max_seqlen-1, n_hidden_states, n_hidden_states);
+            Cumulative pairwise gamma terms (Sum of gamma_pairwise over first dim.)
+
+            This function is called before every em-iteration.
+        """
+
+        stats = super(GammaMultinomialHMM, self)._initialize_sufficient_statistics()
+
+        stats['max_seqlen'] = max_seqlen
+        stats['n_seqs'] = n_seqs
+
+        stats['gamma'], stats['bar_gamma'], \
+        stats['gamma_pairwise'], stats['bar_gamma_pairwise'] = self._init_gammas(n_seqs, max_seqlen)
+
+        stats['all_logprobs'] = np.zeros((n_seqs,))
+
+        return stats
+
+    """ Initializes the n_features (number of observables),
+        checks input data for Multinomial distribution and
+        initializes Matrices
+    """
+
+    def _init(self, X, lengths=None):
+
+        X, n_seqs, max_seqlen = check_arr(X, lengths)
+
+        # This initializes the transition matrices:
+        # startprob_ and transmat_ to 1/n_hidden_states
+        # emissionprob_ to randomly chosen distributions
+        # and sets self.n_features to the number of unique symbols in X
+        # and checks that X are samples of a multinomial distribution
+        # super(GammaMultinomialHMM, self)._init(X, lengths=lengths)
+        super(GammaMultinomialHMM, self)._init(X)
+
+        if self.n_observables is None:
+            self.n_observables = self.n_features
+        elif self.n_features != self.n_observables:
+            raise Exception("n_observables was given %d, but given data has only"
+                            "%d unique symbols" % (self.n_observables, self.n_features))
+
+        if self.matrix_initializer is not None:
+            self._init_matrices_using_initializer(self.matrix_initializer)
+
+        return X, n_seqs, max_seqlen
+
+    def _init_matrices_using_initializer(self, matrix_initializer):
+        # If random_state is None, this returns a new np.RandomState instance
+        # If random_state is int, a new np.RandomState instance seeded with random_state
+        # is returned. If random_state is already an instance of np.RandomState,
+        # it is returned
+        self.random_state = check_random_state(self.random_state)
+
+        pi, A, B = matrix_initializer(self.n_components, self.n_observables, self.random_state)
+        self.startprob_, self.transmat_ = pi, A
+        self.emissionprob_ = B
+        self._check()
+
+    def fit(self, X, lengths=None, val=None, val_lengths=None):
+        """Estimate model parameters.
+        An initialization step is performed before entering the
+        EM algorithm. If you want to avoid this step for a subset of
+        the parameters, pass proper ``init_params`` keyword argument
+        to estimator's constructor.
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Feature matrix of individual samples.
+        lengths : array-like of integers, shape (n_sequences, )
+            Lengths of the individual sequences in ``X``. The sum of
+            these should be ``n_samples``.
+        Returns
+        -------
+        self : object
+            Returns self.
+        """
+
+        # Initializes the n_features (number of observables),
+        # checks input data for Multinomial distribution and
+        # initializes matrices
+        X, n_seqs, max_seqlen = self._init(X, lengths=lengths)
+
+        # This makes sure that transition matrices have the correct shape
+        # and represent distributions
+        self._check()
+
+        log_config = self.logging_monitor.log_config
+        emname = self.logging_monitor.emname
+        self.monitor_._reset()
+        for iter in range(self.n_iter):
+
+            stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
+
+            # Compute metrics before first E-step / after M-step
+            if iter == 0 and log_config['metrics_initial']:
+                log_dict = self._compute_metrics(X, lengths, stats, iter, 'i', val, val_lengths)
+                self.logging_monitor.log(emname(iter, 'i'), log_dict)
+
+            # Do E-step
+            stats, total_logprob = self._forward_backward_gamma_pass(X, lengths, stats)
+
+            # Compute metrics after E-step
+            if log_config['metrics_after_estep_every_n_iter'] is not None:
+                if iter % log_config['metrics_after_estep_every_n_iter'] == 0:
+                    log_dict = self._compute_metrics(X, lengths, stats, iter, 'aE', val, val_lengths)
+                    self.logging_monitor.log(emname(iter, 'aE'), log_dict)
+
+            # XXX must be before convergence check, because otherwise
+            #     there won't be any updates for the case ``n_iter=1``.
+            self._do_mstep(stats)
+
+            if log_config['metrics_after_mstep_every_n_iter'] is not None:
+                if iter % log_config['metrics_after_mstep_every_n_iter'] == 0:
+                    log_dict = self._compute_metrics(X, lengths, stats, iter, 'aM', val, val_lengths)
+                    self.logging_monitor.log(emname(iter, 'aM'), log_dict)
+
+            self.monitor_.report(total_logprob)
+            # if self.monitor_.converged:
+            #    print("Exiting EM early ... (convergence tol)")
+            #    break
+
+        # Final metrics
+        if log_config['metrics_after_convergence']:
+            log_dict = self._compute_metrics(X, lengths, stats, iter, 'f', val, val_lengths)
+            self.logging_monitor.log(emname(iter, 'f'), log_dict)
+
+        return self
+
+    def _forward_backward_gamma_pass(self, X, lengths=None, stats=None, params=None):
+
+        params = self.params if params is None else params
+
+        if stats is None:
+            X, n_seqs, max_seqlen = check_arr(X)
+            stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
+
+        total_logprob = 0
+
+        # Iterate over all sequences
+        for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+
+            stats['nobs'] = seq_idx
+
+            # Compute posteriors by forward-backward algorithm
+            framelogprob = self._compute_log_likelihood(X[i:j])
+            logprob, fwdlattice = self._do_forward_pass(framelogprob)
+
+            stats['all_logprobs'][seq_idx] = logprob  # logprob = probability of X[i:j]
+
+            total_logprob += logprob
+            bwdlattice = self._do_backward_pass(framelogprob)
+            posteriors = self._compute_posteriors(fwdlattice, bwdlattice)
+
+            # Pad posteriors with zeros such that its length equals max_seqlen
+            posteriors = pad_to_seqlen(posteriors, stats['max_seqlen'])
+
+            n_samples, n_components = framelogprob.shape
+            # when the sample is of length 1, it contains no transitions
+            # so there is no reason to update our trans. matrix estimate
+            if n_samples <= 1:
+                continue
+
+            # Compute pairwise gammas and log_xi_sum
+            cur_gamma_pairwise = np.zeros_like(stats['bar_gamma_pairwise'])
+            log_xi_sum = np.full((n_components, n_components), -np.inf)
+            _hmmcmod._compute_log_xi_sum(n_samples, n_components, fwdlattice,
+                                         log_mask_zero(self.transmat_),
+                                         bwdlattice, framelogprob,
+                                         log_xi_sum, cur_gamma_pairwise)
+
+            # Compute gammas
+            stats['gamma'][seq_idx, :, :] = posteriors
+            stats['bar_gamma'] += posteriors
+            stats['bar_gamma_pairwise'] += cur_gamma_pairwise
+            stats['gamma_pairwise'][seq_idx, :, :, :] = cur_gamma_pairwise
+
+            if 's' in self.params:
+                stats['start'] += posteriors[0]
+            if 't' in self.params:
+                with np.errstate(under="ignore"):
+                    stats['trans'] += np.exp(log_xi_sum)
+            if 'e' in self.params:
+                for t, symbol in enumerate(np.concatenate(X[i:j])):
+                    stats['obs'][:, symbol] += posteriors[t]
+
+        return stats, total_logprob
+
+    # Currently supported: Total log-likelihood on given data,
+    # individual log-likelihoods
+    def _compute_metrics(self, X, lengths, stats, em_iter, ident,
+                         val=None, val_lengths=None):
+
+        log_config = self.logging_monitor.log_config
+        log_dict = {}
+        stats = stats.copy()
+
+        # log_dict shall contain:
+        # After E and M:
+        # loglike, all_loglikes
+        # val_loglike, val_all_loglikes
+        # gamma, bar_gamma, gamma_pairwise, bar_gamma_pairwise
+        # startprob_, transmat_, emissionprob_
+        # If parameter is set, after E and M: samples
+        # If parameter is set, after E:
+        # val_gamma, val_bar_gamma, val_gamma_pairwise, val_bar_gamma_pairwise
+        # If parameter is set, after M:
+        # val_gamma, val_bar_gamma, val_gamma_pairwise, val_bar_gamma_pairwise
+
+        # Gamma and transition matrices
+        log_dict['startprob'], log_dict['transmat'], log_dict[
+            'emissionprob'] = self.startprob_, self.transmat_, self.emissionprob_
+
+        # Get log-likelihoods on training set
+        if ident == 'aE':
+
+            if log_config['gamma_after_estep']:
+                log_dict['gamma'], log_dict['bar_gamma'] = stats['gamma'], stats['bar_gamma']
+                log_dict['gamma_pairwise'], log_dict['bar_gamma_pairwise'] = stats['gamma_pairwise'], stats[
+                    'bar_gamma_pairwise']
+
+            # After the estep, you can get the current log-likelihoods from the stats dict
+            log_dict['loglike'] = np.sum(stats['all_logprobs'])
+            log_dict['all_loglikes'] = stats['all_logprobs']
+
+            # DEBUG
+            # log_dict['all_loglikes'] = self.score_individual_sequences(X, lengths)[0]
+            # log_dict['loglike'] = np.sum(log_dict['all_loglikes']) #self.score(X, lengths)
+
+            # print("In _compute_metrics aE", log_dict['all_loglikes'].shape, stats['all_logprobs'].shape)
+            # print('stats sum:', np.sum(stats['all_logprobs']), log_dict['loglike'])
+            # _al = self.score_individual_sequences(X, lengths)[0]
+            # print(np.sum(stats['all_logprobs']) == np.sum(_al))
+            # print(np.all(stats['all_logprobs'] == _al))
+            # print('stats all logprobs', stats['all_logprobs'])
+            # print('all loglikes', log_dict['all_loglikes'])
+            # _scored_loglikes = np.array(log_dict['all_loglikes'])
+            # _stat_loglikes = np.array(stats['all_logprobs'])
+            # print(np.all(_scored_loglikes == _stat_loglikes))
+            # print(np.sum(_scored_loglikes) == np.sum(_stat_loglikes))
+
+            if log_config['samples_after_estep'] is not None:
+                sample_sizes = None
+                if type(log_config['samples_after_estep']) == tuple:
+                    sample_sizes = log_config['samples_after_estep']
+                else:
+                    if val_lengths is not None:
+                        sample_sizes = (len(val_lengths), np.max(val_lengths))
+                    else:
+                        sample_sizes = (stats['n_seqs'], stats['max_seqlen'])
+                log_dict['samples'] = self.sample_sequences(*sample_sizes)
+
+        elif ident == 'aM' or ident == 'f' or ident == 'i':
+
+            # After the mstep, the stats dict contains the log-likelihoods under previous transition matrices
+            # Therefore, cannot use stats dict
+            log_dict['all_loglikes'] = self.score_individual_sequences(X, lengths)[0]
+            log_dict['loglike'] = np.sum(log_dict['all_loglikes'])  # self.score(X, lengths)
+
+            if log_config['gamma_after_mstep']:
+                log_dict['gamma'], log_dict['bar_gamma'] = stats['gamma'], stats['bar_gamma']
+                log_dict['gamma_pairwise'], log_dict['bar_gamma_pairwise'] = stats['gamma_pairwise'], stats[
+                    'bar_gamma_pairwise']
+
+            if log_config['samples_after_mstep'] is not None:
+                sample_sizes = None
+                if type(log_config['samples_after_mstep']) == tuple:
+                    sample_sizes = log_config['samples_after_mstep']
+                else:
+                    if val_lengths is not None:
+                        sample_sizes = (len(val_lengths), np.max(val_lengths))
+                    else:
+                        sample_sizes = (stats['n_seqs'], stats['max_seqlen'])
+                log_dict['samples'] = self.sample_sequences(*sample_sizes)
+
+        # Get log-likelihoods and gammas on test set
+        if val is not None:
+
+            if log_config['test_gamma_after_estep'] and ident == 'aE' or log_config[
+                'test_gamma_after_mstep'] and ident == 'aM':
+
+                val_stats, val_loglike = self._forward_backward_gamma_pass(val, val_lengths)
+                log_dict['val_all_loglikes'] = val_stats['all_logprobs']
+                log_dict['val_loglike'] = val_loglike
+
+                # Gammas
+                log_dict['val_gamma'], log_dict['val_bar_gamma'] = val_stats['gamma'], val_stats['bar_gamma']
+                log_dict['val_gamma_pairwise'] = val_stats['val_gamma_pairwise']
+                log_dict['val_bar_gamma_pairwise'] = val_stats['val_bar_gamma_pairwise']
+
+            else:
+                log_dict['val_all_loglikes'], log_dict['val_loglike'] = self.score_individual_sequences(val,
+                                                                                                        val_lengths)
+
+        return log_dict
+
+    """ Sample n_seqs (int) sequences each of length seqlen (int). Returns an array of shape (n_seqs, seqlen, n_features) """
+
+    def sample_sequences(self, n_seqs, seqlen):
+        # hmm.sample returns (sequence, state_sequence)
+        return np.array([self.sample(n_samples=seqlen)[0] for _ in range(n_seqs)])
+
+    def score_individual_sequences(self, X, lengths=None):
+        """Compute the log probability under the model.
+        Parameters
+        ----------
+        X : array-like, shape (n_samples, n_features)
+            Feature matrix of individual samples.
+        lengths : array-like of integers, shape (n_sequences, ), optional
+            Lengths of the individual sequences in ``X``. The sum of
+            these should be ``n_samples``.
+        Returns
+        -------
+        logprob : float
+            Log likelihood of ``X``.
+        See Also
+        --------
+        score_samples : Compute the log probability under the model and
+            posteriors.
+        decode : Find most likely state sequence corresponding to ``X``.
+        """
+        # _utils.check_is_fitted(self, "startprob_")
+        check_is_fitted(self, "startprob_")
+        self._check()
+
+        logprobs = None
+        if lengths is None:
+            logprobs = np.zeros(1)
+        else:
+            logprobs = np.zeros(len(lengths))
+
+        X = check_array(X)
+        # XXX we can unroll forward pass for speed and memory efficiency.
+        logprob = 0
+        for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+            framelogprob = self._compute_log_likelihood(X[i:j])
+            logprobij, _fwdlattice = self._do_forward_pass(framelogprob)
+            logprobs[seq_idx] = logprobij
+            logprob += logprobij
+        return logprobs, logprob
+
+    """ Turns the given observations X of shape (n_sequences, 1)
+        into an observations matrix (n_sequences, max_seqlen) 
+        by padding sequences to max_seqlen """
+
+    def _observations_to_padded_matrix(self, X, lengths):
+
+        O, n_seqs, max_seqlen = check_arr(X, lengths)
+        O = O.flatten()
+
+        # X has shape (seqs, 1);
+        # Turn it into (seqs, max_seqlen) by padding
+        arr = np.zeros((len(lengths), max_seqlen))
+        for idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+            sequence = O[i:j]
+            arr[idx] = np.pad(sequence,
+                              (0, max_seqlen - len(sequence)),
+                              'constant', constant_values=(0))
+
+        # Check if arr contains only integer
+        if not np.all(np.equal(np.mod(arr, 1), 0)):
+            raise Exception("Sequence elements have to be integer! \n"
+                            "arr: \n %s \n X \n %s" % (str(arr), str(O)))
+        O = arr.astype(np.int)
+        return O, n_seqs, max_seqlen
+
         
         
     
