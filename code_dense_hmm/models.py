@@ -81,7 +81,9 @@ class GammaMultinomialHMM(MultinomialHMM):
         elif callable(init_params):
             self.matrix_initializer = init_params
             init_params = ''
-        
+        self.n_observables = n_observables
+        self.em_iter = em_iter
+        self.n_hidden_states = n_hidden_states
         super(GammaMultinomialHMM, self).__init__(n_components=n_hidden_states,
                                 startprob_prior=startprob_prior,
                                 transmat_prior=transmat_prior,
@@ -92,9 +94,8 @@ class GammaMultinomialHMM(MultinomialHMM):
                                 verbose=verbose,
                                 params=params,
                                 init_params=init_params)
-        self.em_iter = em_iter
-        self.n_observables = n_observables
-        self.n_hidden_states = n_hidden_states
+
+
         self.logging_monitor = logging_monitor if logging_monitor is not None else HMMLoggingMonitor()
         self.convergence_tol = convergence_tol
         if self.matrix_initializer is not None and self.n_observables is not None:
@@ -218,28 +219,32 @@ class GammaMultinomialHMM(MultinomialHMM):
         log_config = self.logging_monitor.log_config
         emname = self.logging_monitor.emname
         self.monitor_._reset()
+        stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
         for iter in range(self.n_iter):
-            
-            stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
-            
+            # print(stats)
+
+            # stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
             # Compute metrics before first E-step / after M-step
             if iter == 0 and log_config['metrics_initial']:
                 log_dict = self._compute_metrics(X, lengths, stats, iter, 'i', val, val_lengths)
                 self.logging_monitor.log(emname(iter, 'i'), log_dict)
             
             # Do E-step
+            # print(stats['trans'])
             stats, total_logprob = self._forward_backward_gamma_pass(X, lengths, stats)
-
+            # print("E step done")
             # Compute metrics after E-step
             if log_config['metrics_after_estep_every_n_iter'] is not None:
                 if iter % log_config['metrics_after_estep_every_n_iter'] == 0:
                     log_dict = self._compute_metrics(X, lengths, stats, iter, 'aE', val, val_lengths)
                     self.logging_monitor.log(emname(iter, 'aE'), log_dict)
-
+            # print(self.transmat_)
+            # print(stats['trans'])
+            # print("M step start")
             # XXX must be before convergence check, because otherwise
             #     there won't be any updates for the case ``n_iter=1``.
             self._do_mstep(stats)
-
+            # print("M step done")
             if log_config['metrics_after_mstep_every_n_iter'] is not None:
                 if iter % log_config['metrics_after_mstep_every_n_iter'] == 0:
                     log_dict = self._compute_metrics(X, lengths, stats, iter, 'aM', val, val_lengths)
@@ -269,9 +274,9 @@ class GammaMultinomialHMM(MultinomialHMM):
         
         params = self.params if params is None else params
         
-        # if stats is None:
-        X, n_seqs, max_seqlen = check_arr(X)
-        stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
+        if stats is None:
+            X, n_seqs, max_seqlen = check_arr(X)
+            stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
         
         total_logprob = 0
         
@@ -282,7 +287,8 @@ class GammaMultinomialHMM(MultinomialHMM):
 
             # Compute posteriors by forward-backward algorithm
             framelogprob = self._compute_log_likelihood(X[i:j].transpose())
-            logprob, fwdlattice = _hmmcmod.forward_log(self.startprob_, self.transmat_, framelogprob)
+            logprob, fwdlattice = self._do_forward_log_pass(framelogprob)
+            fwdlattice = _hmmcmod.forward_log(self.startprob_, self.transmat_, framelogprob)
             # print(logprob)
             # print(fwdlattice)
             stats['all_logprobs'][seq_idx] = logprob # logprob = probability of X[i:j]
@@ -303,10 +309,12 @@ class GammaMultinomialHMM(MultinomialHMM):
             # Compute pairwise gammas and log_xi_sum
             cur_gamma_pairwise = np.zeros_like(stats['bar_gamma_pairwise'])
             log_xi_sum = np.full((n_components, n_components), -np.inf)
-            _hmmcmod._compute_log_xi_sum(n_samples, n_components, fwdlattice,
-                                      log_mask_zero(self.transmat_),
-                                      bwdlattice, framelogprob,
-                                      log_xi_sum, cur_gamma_pairwise)
+            log_xi_sum = _hmmcmod.compute_log_xi_sum(fwdlattice,
+                                      self.transmat_,
+                                      bwdlattice, framelogprob)
+            # _hmmcmod.compute_log_xi_sum(fwdlattice,
+            #                             self.transmat_,
+            #                             bwdlattice, framelogprob)
             
             
             # Compute gammas
@@ -471,7 +479,7 @@ class GammaMultinomialHMM(MultinomialHMM):
         logprob = 0
         for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
             framelogprob = self._compute_log_likelihood(X[i:j].transpose())
-            logprobij, _fwdlattice = _hmmcmod.forward_log(self.startprob_, self.transmat_, framelogprob) # TODO
+            logprobij, _fwdlattice = self._do_forward_log_pass(framelogprob) # TODO
             logprobs[seq_idx] = logprobij
             logprob += logprobij
         return logprobs, logprob
