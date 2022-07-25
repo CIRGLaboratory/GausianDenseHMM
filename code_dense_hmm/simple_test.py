@@ -6,6 +6,7 @@ from models import StandardHMM, DenseHMM
 import time
 from tqdm import tqdm
 from ssm.util import find_permutation
+import pickle
 
 np.random.seed(2022)
 
@@ -101,5 +102,5 @@ def run_experiments():
 
 if __name__ == "__main__":
     result = run_experiments()
-    with open("experiment_result_22-07-22.json",  "w") as f:
-        json.dump(result, f)
+    with open("experiment_result_22-07-22.pkl",  "wb") as f:
+        pickle.dump(result, f)
