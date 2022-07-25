@@ -48,7 +48,7 @@ def experiment(n, m, T, s,  l, A_stat=False):
     dense_timer = []
     hmml_acc = []
     hmml_timer = []
-    for _ in tqdm(range(10), desc="HMM"):
+    for _ in tqdm(range(3), desc="HMM"):
         A_init = np.exp(np.random.uniform(0, 5, size=(n, n)))
         A_init /= A_init.sum(axis=1)[:, np.newaxis]
 
