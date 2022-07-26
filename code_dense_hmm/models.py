@@ -1,17 +1,10 @@
-from hmmlearn.hmm import MultinomialHMM, GaussianHMM
+from hmmlearn.hmm import MultinomialHMM
 from hmmlearn.base import ConvergenceMonitor, check_array
 from hmmlearn.utils import log_mask_zero
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 import numpy as np
 from tqdm import tqdm
-# import hmmlearn._utils as fhmmc
-# from pathlib import  Path
-# from Cython.Build import cythonize
-# import pyximport
-# pyximport.install(setup_args={"ext_modules": cythonize(f"{Path(__file__).parent.resolve()}/hmmc/_hmmc.pyx", include_path=[np.get_include()]),
-#                               "include_dirs": [np.get_include()]})
-# from hmmc import _hmmc as _hmmcmod
 
 from hmmlearn import _hmmc as _hmmcmod
 
