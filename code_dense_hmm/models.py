@@ -9,7 +9,7 @@ from tqdm import tqdm
 from hmmlearn import _hmmc as _hmmcmod
 
 from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, empirical_coocs, \
-    iter_from_X_lengths, check_is_fitted, check_arr_gaussian
+    iter_from_Xlengths, check_is_fitted, check_arr_gaussian
 
 import time
 import itertools
@@ -274,7 +274,7 @@ class GammaMultinomialHMM(MultinomialHMM):
         total_logprob = 0
         
         # Iterate over all sequences
-        for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+        for seq_idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
             
             stats['nobs'] = seq_idx
 
@@ -470,7 +470,7 @@ class GammaMultinomialHMM(MultinomialHMM):
         X = check_array(X)
         # XXX we can unroll forward pass for speed and memory efficiency.
         logprob = 0
-        for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+        for seq_idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
             framelogprob = self._compute_log_likelihood(X[i:j].transpose())
             logprobij, _fwdlattice = self._do_forward_log_pass(framelogprob) # TODO
             logprobs[seq_idx] = logprobij
@@ -488,7 +488,7 @@ class GammaMultinomialHMM(MultinomialHMM):
         # X has shape (seqs, 1); 
         # Turn it into (seqs, max_seqlen) by padding
         arr = np.zeros((len(lengths), max_seqlen))
-        for idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+        for idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
             sequence = O[i:j]
             arr[idx] = np.pad(sequence, 
                               (0, max_seqlen - len(sequence)), 

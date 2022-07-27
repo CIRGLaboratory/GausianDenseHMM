@@ -257,10 +257,10 @@ def cooc_loss(x, y):
     return np.mean(np.abs(y-x))
     
 
-def iter_from_X_lengths(X, lengths):
-    warnings.warn(
-        "iter_from_X_lengths is deprecated and will be removed in the future.",
-        DeprecationWarning, stacklevel=2)
+def iter_from_Xlengths(X, lengths):
+    # warnings.warn(
+    #     "iter_from_X_lengths is deprecated and will be removed in the future.",
+    #     DeprecationWarning, stacklevel=2)
     if lengths is None:
         yield 0, len(X)
     else:

@@ -8,10 +8,9 @@ import numpy as np
 from tqdm import tqdm
 from scipy.stats import multivariate_normal
 from hmmlearn import _hmmc as _hmmcmod
-
+from hmmlearn  import _utils
 from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, \
-    empirical_coocs, \
-    iter_from_X_lengths, check_is_fitted, check_arr_gaussian
+    empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian
 from models import HMMLoggingMonitor
 import time
 import itertools
@@ -25,11 +24,11 @@ class GammaGaussianHMM(GaussianHMM):
                  startprob_prior=1.0, transmat_prior=1.0,
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
-                 params="stm", init_params="stm", logging_monitor=None):
+                 params="stmc", init_params="stmc", logging_monitor=None):
 
         self.matrix_initializer = None
         if init_params is None:
-            init_params = "stm"
+            init_params = "stmc"
         elif callable(init_params):  # INFO: custom initialization function
             self.matrix_initializer = init_params
             init_params = ''
@@ -51,7 +50,9 @@ class GammaGaussianHMM(GaussianHMM):
                                                params=params,
                                                init_params=init_params,
                                                implementation='log')
-
+        self.convergence_tol = convergence_tol
+        self.em_iter = em_iter
+        self.n_hidden_states = n_hidden_states
         self.n_dims = n_dims   # TODO: ogólne n_dims, bez zapisywania atrybutu
         self.logging_monitor = logging_monitor if logging_monitor is not None else HMMLoggingMonitor()
 
@@ -59,8 +60,8 @@ class GammaGaussianHMM(GaussianHMM):
             self._init_matrices_using_initializer(self.matrix_initializer)
 
     def _init_gammas(self, n_seqs, max_seqlen):
-        gamma = np.zeros((n_seqs, max_seqlen, self.n_components))  # TODO: czy to gammy (i xi) z EMa?
-        bar_gamma = np.zeros((max_seqlen, self.n_components))  # TODO: Czy bar gammy odnoszą się do $\bar \mathcal L$ czy do dense Ema
+        gamma = np.zeros((n_seqs, max_seqlen, self.n_components))
+        bar_gamma = np.zeros((max_seqlen, self.n_components))
         gamma_pairwise = np.zeros((n_seqs, max_seqlen - 1, self.n_components, self.n_components))
         bar_gamma_pairwise = np.zeros((max_seqlen - 1, self.n_components, self.n_components))
         return gamma, bar_gamma, gamma_pairwise, bar_gamma_pairwise
@@ -94,7 +95,7 @@ class GammaGaussianHMM(GaussianHMM):
             - bar_gamma_pairwise: array, shape (max_seqlen-1, n_hidden_states, n_hidden_states);
             Cumulative pairwise gamma terms (Sum of gamma_pairwise over first dim.)
 
-            This function is called before every em-iteration.  #  TODO:  changed, called only before EM start.  What exacly was wrong??        """
+            This function is called before every em-iteration.     """
 
         stats = super(GammaGaussianHMM, self)._initialize_sufficient_statistics()
 
@@ -125,7 +126,7 @@ class GammaGaussianHMM(GaussianHMM):
         super(GammaGaussianHMM, self)._init(X)
 
         if self.n_dims is None:
-            self.n_dims = self.n_features  # TODO: czemu ma służyć zdwojenie tego  atrybutu?
+            self.n_dims = self.n_features
         elif self.n_features != self.n_dims:
             raise Exception("n_dims was given %d, but given data has only"
                             "%d values in vector" % (self.n_dims, self.n_features))
@@ -179,10 +180,9 @@ class GammaGaussianHMM(GaussianHMM):
         log_config = self.logging_monitor.log_config
         emname = self.logging_monitor.emname
         self.monitor_._reset()
-        stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)
         for iter in tqdm(range(self.n_iter), desc="Fit model"):
 
-            # TODO: Stąd  wyrzuciłam self._initialize_sufficient_statistics(...)
+            stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)  # TODO:  porównaj
 
             # Compute metrics before first E-step / after M-step
             if iter == 0 and log_config['metrics_initial']:
@@ -208,9 +208,9 @@ class GammaGaussianHMM(GaussianHMM):
                     self.logging_monitor.log(emname(iter, 'aM'), log_dict)
 
             self.monitor_.report(total_logprob)
-            # if self.monitor_.converged:
-            #    print("Exiting EM early ... (convergence tol)")
-            #    break
+            if self.monitor_.converged:
+               print("Exiting EM early ... (convergence tol)")
+               break
 
         # Final metrics
         if log_config['metrics_after_convergence']:
@@ -242,52 +242,74 @@ class GammaGaussianHMM(GaussianHMM):
 
         total_logprob = 0
 
-        # Iterate over all sequences
-        for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+        # new - hmmlearn
+        # for sub_X in _utils.split_X_lengths(X, lengths):
+        for seq_idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
+            sub_X = X[i:j]
+            lattice, log_prob, posteriors, fwdlattice, bwdlattice = \
+                self._fit_log(sub_X)
+            # Derived HMM classes will implement the following method to
+            # update their probability distributions, so keep
+            # a single call to this method for simplicity.
+            self._accumulate_sufficient_statistics(
+                stats, sub_X, lattice, posteriors, fwdlattice,
+                bwdlattice)
+            total_logprob += log_prob
 
-            stats['nobs'] = seq_idx
+        # old - dense-hmm
 
-            # Compute posteriors by forward-backward algorithm
-            lattice, logprob, posteriors, fwdlattice, bwdlattice = self._fit_log(X[i:j])
-            framelogprob = np.nan_to_num(self._compute_log_likelihood(X[i:j]))  # INFO:  nans filled with 0, my own idea, TODO:  check
-            # logprob, fwdlattice = self._do_forward_log_pass(framelogprob)
-            # fwdlattice = _hmmcmod.forward_log(self.startprob_, self.transmat_, framelogprob)
-            stats['all_logprobs'][seq_idx] = logprob  # logprob = probability of X[i:j]
+        # # Iterate over all sequences
 
-            total_logprob += logprob
-            # bwdlattice = _hmmcmod.backward_log(self.startprob_, self.transmat_, framelogprob)
-            # posteriors = self._compute_posteriors_log(fwdlattice, bwdlattice)
-            # Pad posteriors with zeros such that its length equals max_seqlen
+        #
+        #     stats['nobs'] = seq_idx
+        #
+        #     # Compute posteriors by forward-backward algorithm
+        #     framelogprob = self._compute_log_likelihood(X[i:j])
+        #     logprob,  fwdlattice = self._do_forward_log_pass(framelogprob)
+        #     bwdlattice = _hmmcmod.backward_log(self.startprob_, self.transmat_, framelogprob)
+        #     posteriors = self._compute_posteriors_log(fwdlattice, bwdlattice)
+        #
+        #     stats['all_logprobs'][seq_idx] = logprob  # logprob = probability of X[i:j]
+        #
+        #     total_logprob += logprob
+        #
+        #     if 'm' in self.params or 'c' in self.params:
+        #         stats['post'] += posteriors.sum(axis=0)
+        #         stats['obs'] += np.dot(posteriors.T, X[i:j])
+        #     if 'c' in self.params:
+        #         if self.covariance_type in ('spherical', 'diag'):
+        #             stats['obs**2'] += np.dot(posteriors.T, X[i:j] ** 2)
+        #         elif self.covariance_type in ('tied', 'full'):
+        #             # posteriors: (nt, nc); obs: (nt, nf); obs: (nt, nf)
+        #             # -> (nc, nf, nf)
+        #             stats['obs*obs.T'] += np.einsum(
+        #                 'ij,ik,il->jkl', posteriors, X[i:j], X[i:j])
+        #
             posteriors = pad_to_seqlen(posteriors, stats['max_seqlen'])
-            print(posteriors)
-            n_samples, n_components = framelogprob.shape
-            # when the sample is of length 1, it contains no transitions
-            # so there is no reason to update our trans. matrix estimate
-            if n_samples <= 1:
-                continue
-
-            # Compute pairwise gammas and log_xi_sum
+        #     n_samples, n_components = framelogprob.shape
+        #     # when the sample is of length 1, it contains no transitions
+        #     # so there is no reason to update our trans. matrix estimate
+        #     if n_samples <= 1:
+        #         continue
+        #
+        #     # Compute pairwise gammas and log_xi_sum
             cur_gamma_pairwise = np.zeros_like(stats['bar_gamma_pairwise'])
-            # log_xi_sum = np.full((n_components, n_components), -np.inf)  # TODO:  wykomentowałam, zastąpiłam kolejną linijką
-            log_xi_sum = _hmmcmod.compute_log_xi_sum( fwdlattice,
-                                         self.transmat_,
-                                         bwdlattice, framelogprob)
-
+        #     log_xi_sum = _hmmcmod.compute_log_xi_sum( fwdlattice,
+        #                                  self.transmat_,
+        #                                  bwdlattice, framelogprob)
+        #
             # Compute gammas
             stats['gamma'][seq_idx, :, :] = posteriors
             stats['bar_gamma'] += posteriors
             stats['bar_gamma_pairwise'] += cur_gamma_pairwise
             stats['gamma_pairwise'][seq_idx, :, :, :] = cur_gamma_pairwise
+        #
+        #     if 's' in self.params:
+        #         stats['start'] += posteriors[0]
+        #     if 't' in self.params:
+        #         with np.errstate(under="ignore"):
+        #             stats['trans'] += np.exp(log_xi_sum.astype('float128'))
 
-            if 's' in self.params:
-                stats['start'] += posteriors[0]
-            if 't' in self.params:
-                with np.errstate(under="ignore"):
-                    stats['trans'] += np.exp(log_xi_sum)   #  TODO: wcześniej nic to  nie zmieniało
-                    # stats['trans'] += log_xi_sum  # TODO: usunęłam expa
-            if 'e' in self.params:
-                for t, symbol in enumerate(np.concatenate(X[i:j])):
-                    stats['obs'][:, symbol] += posteriors[t]
 
         return stats, total_logprob
 
@@ -437,11 +459,7 @@ class GammaGaussianHMM(GaussianHMM):
         X = check_array(X)
         # XXX we can unroll forward pass for speed and memory efficiency.
         logprob = 0
-        for seq_idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
-            print(X[i:j])
-            print(X[i:j].shape)
-            print(self.covars_)
-            print(self.means_)
+        for seq_idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
             framelogprob = self._compute_log_likelihood(X[i:j])
             logprobij, _fwdlattice = self._do_forward_log_pass(framelogprob)
             logprobs[seq_idx] = logprobij
@@ -460,7 +478,7 @@ class GammaGaussianHMM(GaussianHMM):
         # X has shape (seqs, 1);  # TODO:  what??
         # Turn it into (seqs, max_seqlen) by padding
         arr = np.zeros((len(lengths), max_seqlen))
-        for idx, (i, j) in enumerate(iter_from_X_lengths(X, lengths)):
+        for idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
             sequence = O[i:j]
             arr[idx] = np.pad(sequence,
                               (0, max_seqlen - len(sequence)),
@@ -473,6 +491,7 @@ class GammaGaussianHMM(GaussianHMM):
         O = arr.astype(np.float32)
         return O, n_seqs, max_seqlen
 
+
 class StandardGaussianHMM(GammaGaussianHMM):
 
     def __init__(self, n_hidden_states=1, n_dims=None,
@@ -480,7 +499,7 @@ class StandardGaussianHMM(GammaGaussianHMM):
                  startprob_prior=1.0, transmat_prior=1.0,
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
-                 params="stm", init_params="stm", logging_monitor=None):
+                 params="stmc", init_params="stmc", logging_monitor=None):
 
         super(StandardGaussianHMM, self).__init__(n_hidden_states=n_hidden_states,
                                                   n_dims=n_dims,
@@ -503,8 +522,6 @@ class StandardGaussianHMM(GammaGaussianHMM):
 
     def _compute_metrics(self, X, lengths, stats, em_iter, ident,
                          val=None, val_lengths=None):
-        print(self.covars_)
-        print(X.shape)
         log_config = self.logging_monitor.log_config
         log_dict = super(StandardGaussianHMM, self)._compute_metrics(X, lengths, stats, em_iter, ident, val,
                                                                      val_lengths)
@@ -541,7 +558,7 @@ class StandardGaussianHMM(GammaGaussianHMM):
 
         # distr = tfd.MultivariateNormalTriL(self.means_, self.covars_)
         # log_B = tf.concat([[distr.log_prob(X[i, j])[tf.newaxis, :] for i in range(X.shape[0])] for j in range(X.shape[1])], axis=1)
-        log_B = np.array([[[multivariate_normal.pdf(X[j, i], m, c) for m, c in zip(self.means_, self._covars_)] for i in range(X.shape[1])] for j in range(X.shape[0])])
+        log_B = np.log(np.array([[[multivariate_normal.pdf(X[j, i], m, c) for m, c in zip(self.means_, self._covars_)] for i in range(X.shape[1])] for j in range(X.shape[0])]))
         log_pi = np.log(self.startprob_)
 
         # tilde_B = log_B[:, X]  # Has shape (n_hidden_states, seqs, max_seqlen)
@@ -668,12 +685,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
             # INFO: zmiana emisji następuje na poziomie wartości argumentu B_log_ker
             # INFO: tf.einsum:  tilde_M[i, t, h] = \Sum_{o} tilde_O_ph[i, t, o] * B_log_ker[i, t, h]
-            # TODO: zmień emisję!
-            # print(tilde_O_ph.shape)
-            # print(B_log_ker.shape)
-            # tilde_M = tf.einsum('ith, ith->ith', tilde_O_ph, B_log_ker)  # TODO: czemu tilde_O_ph nie jest zdefiniowane?
-            loss_3 = -tf.reduce_sum(gamma * B_log_ker)
-            # loss_3_normalization = tf.reduce_sum(B_log_ker_normal * bar_gamma)
+            loss_3 = -tf.reduce_sum(bar_gamma * B_log_ker)
 
             loss_total = tf.identity(loss_1 + loss_1_normalization +
                                      loss_2 + loss_2_normalization +
@@ -846,6 +858,25 @@ class GaussianDenseHMM(GammaGaussianHMM):
     def _do_mstep(self, stats):
         if self.session is None:
             raise Exception("Uninitialized TF Session. You must call _init first")
+
+        for epoch in range(self.em_epochs):
+
+            train_input_dict = {self.gamma: stats['gamma'],
+                                self.bar_gamma: stats['bar_gamma'],
+                                self.bar_gamma_pairwise: stats['bar_gamma_pairwise'],
+                                self.tilde_O_ph: self.tilde_O,
+                                self.means: self.means_,
+                                self.covars:  self.covars_}
+
+            self.session.run(self.loss_update, feed_dict=train_input_dict)
+            print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
+
+        A, pi = self.session.run([self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn])
+        self.transmat_ = A
+        self.startprob_ = pi
+
+        # Update means and covars like in GaussianHMM
+
         means_prior = self.means_prior
         means_weight = self.means_weight
 
@@ -856,8 +887,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
         denom = stats['post'][:, None]
         if 'm' in self.params:
             self.means_ = ((means_weight * means_prior + stats['obs'])
-                           / (means_weight + denom + 1e-10))
-        print(self.means_)
+                           / (means_weight + denom))
+
         if 'c' in self.params:
             covars_prior = self.covars_prior
             covars_weight = self.covars_weight
@@ -886,30 +917,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
                               * stats['post'][c])
                 cvweight = max(covars_weight - self.n_features, 0)
                 if self.covariance_type == 'tied':
-                    _covars_ = ((covars_prior + c_n.sum(axis=0)) /
-                                (cvweight + stats['post'].sum()))
+                    self._covars_ = ((covars_prior + c_n.sum(axis=0)) /
+                                     (cvweight + stats['post'].sum()))
                 elif self.covariance_type == 'full':
-                    _covars_ = ((covars_prior + c_n) /
-                                (cvweight + stats['post'][:, None, None]))
-
-        for epoch in range(self.em_epochs):
-
-            train_input_dict = {self.gamma: stats['gamma'],
-                                self.bar_gamma: stats['bar_gamma'],
-                                self.bar_gamma_pairwise: stats['bar_gamma_pairwise'],
-                                self.tilde_O_ph: self.tilde_O,
-                                self.means: self.means_,
-                                self.covars:  self.covars_}
-
-            self.session.run(self.loss_update, feed_dict=train_input_dict)
-            print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
-
-        A, pi = self.session.run([self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn])
-        self.transmat_ = A
-        self.startprob_ = pi
-
-
-
+                    self._covars_ = ((covars_prior + c_n) /
+                                     (cvweight + stats['post'][:, None, None]))
 
     def _compute_metrics(self, X, lengths, stats, em_iter, ident,
                          val=None, val_lengths=None):
@@ -952,18 +964,12 @@ class GaussianDenseHMM(GammaGaussianHMM):
         X, n_seqs, max_seqlen = self._observations_to_padded_matrix(X, lengths)
 
         log_A = np.log(self.transmat_)
-        # distr = tfd.MultivariateNormalTriL(self.means_, self._covars_)
-        log_B = np.array([[[multivariate_normal.pdf(X[j, i], m, c) for m, c in zip(self.means_, self._covars_)] for i in range(X.shape[1])] for j in range(X.shape[0])])
+        log_B = np.log(np.array([[[multivariate_normal.pdf(X[j, i], m, c) for m, c in zip(self.means_, self._covars_)] for i in range(X.shape[1])] for j in range(X.shape[0])]))
         log_pi = np.log(self.startprob_)
-
-        # tilde_B = log_B[:, X]  # Has shape (n_hidden_states, seqs, max_seqlen)
 
         loss1 = -np.einsum('s,s->', log_pi, bar_gamma[0, :])
         loss2 = -np.einsum('jl,tjl->', log_A, bar_gamma_pairwise)
-        # loss3 = -np.einsum('jit,itj->', log_B, gamma)  # TODO: czemu/czy gamma bez bar?
-        print(log_B.shape)
-        print(gamma.shape)
-        loss3 = -np.einsum('ijt,ijt->', log_B, gamma)  # TODO: repare!!!
+        loss3 = -np.einsum('sti,sti->', log_B, gamma)  # TODO: recheck
         loss = loss1 + loss2 + loss3
 
         return np.array([loss, loss1, loss2, loss3])
