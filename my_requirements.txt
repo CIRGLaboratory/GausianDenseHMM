@@ -1,6 +1,3 @@
-# This file may be used to create an environment using:
-# $ conda create --name <env> --file <this file>
-# platform: linux-64
 _libgcc_mutex=0.1=conda_forge
 _openmp_mutex=4.5=2_gnu
 absl-py=1.2.0=pypi_0
@@ -13,6 +10,7 @@ asttokens=2.0.5=pyhd8ed1ab_0
 astunparse=1.6.3=pypi_0
 async-timeout=4.0.2=pypi_0
 attrs=21.4.0=pypi_0
+autograd=1.4=pypi_0
 backcall=0.2.0=pypi_0
 beautifulsoup4=4.11.1=py310h06a4308_0
 binutils_impl_linux-64=2.36.1=h193b22a_2
@@ -27,6 +25,7 @@ cffi=1.15.0=py310hd667e15_1
 chardet=4.0.0=py310h06a4308_1003
 charset-normalizer=2.1.0=pypi_0
 click=8.1.3=pypi_0
+cloudpickle=2.1.0=pypi_0
 conda=4.13.0=py310h06a4308_0
 conda-build=3.21.9=py310h06a4308_0
 conda-package-handling=1.8.1=py310h7f8727e_0
@@ -37,6 +36,7 @@ dateparser=1.1.1=pypi_0
 debugpy=1.6.2=pypi_0
 decorator=5.1.1=pypi_0
 defusedxml=0.7.1=pypi_0
+dm-tree=0.1.7=pypi_0
 entrypoints=0.4=pypi_0
 executing=0.8.3=pyhd8ed1ab_0
 fastjsonschema=2.16.1=pypi_0
@@ -44,6 +44,7 @@ filelock=3.6.0=pyhd3eb1b0_0
 flatbuffers=1.12=pypi_0
 fonttools=4.34.4=pypi_0
 frozenlist=1.3.0=pypi_0
+future=0.18.2=pypi_0
 gast=0.4.0=pypi_0
 gcc=12.1.0=h9ea6d83_10
 gcc_impl_linux-64=12.1.0=hea43390_16
@@ -92,6 +93,7 @@ libuuid=1.0.3=h7f8727e_2
 libxml2=2.9.9=hea5a465_1
 libxslt=1.1.33=h0aadf70_1
 libxslt-devel=1.1.33=1
+llvmlite=0.38.1=pypi_0
 lz4-c=1.9.3=h295c915_1
 markdown=3.4.1=pypi_0
 markupsafe=2.1.1=py310h7f8727e_0
@@ -106,11 +108,13 @@ ncurses=6.3=h5eee18b_3
 nest-asyncio=1.5.5=pypi_0
 nltk=3.7=pypi_0
 notebook=6.4.12=pypi_0
-numpy=1.23.1=pypi_0
+numba=0.55.2=pypi_0
+numpy=1.22.4=pypi_0
 oauthlib=3.2.0=pypi_0
 openssl=1.1.1q=h7f8727e_0
 opt-einsum=3.3.0=pypi_0
 packaging=21.3=pypi_0
+pandas=1.4.3=pypi_0
 pandocfilters=1.5.0=pypi_0
 parso=0.8.3=pypi_0
 patchelf=0.13=h295c915_0
@@ -158,11 +162,13 @@ rsa=4.8=pypi_0
 ruamel_yaml=0.15.100=py310h7f8727e_0
 scikit-learn=1.1.1=pypi_0
 scipy=1.8.1=pypi_0
+seaborn=0.11.2=pypi_0
 send2trash=1.8.0=pypi_0
 setuptools=61.2.0=py310h06a4308_0
 six=1.16.0=pyhd3eb1b0_1
 soupsieve=2.3.1=pyhd3eb1b0_0
 sqlite=3.38.5=hc218d9a_0
+ssm=0.0.1=dev_0
 stack-data=0.3.0=pypi_0
 sysroot_linux-64=2.12=he073ed8_15
 tensorboard=2.9.1=pypi_0
@@ -171,6 +177,7 @@ tensorboard-plugin-wit=1.8.1=pypi_0
 tensorflow=2.9.1=pypi_0
 tensorflow-estimator=2.9.0=pypi_0
 tensorflow-io-gcs-filesystem=0.26.0=pypi_0
+tensorflow-probability=0.17.0=pypi_0
 termcolor=1.1.0=pypi_0
 terminado=0.15.0=pypi_0
 threadpoolctl=3.1.0=pypi_0
