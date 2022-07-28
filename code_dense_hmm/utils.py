@@ -155,9 +155,6 @@ def check_arr(X, lengths=None):
 def check_arr_gaussian(X, lengths=None):
     X = check_array(X)
 
-    # if X.shape[-1] != 1:
-    #     raise Exception("Sequences of vectors are currently not supported. Please map each vector to an integer value")
-
     # A sequence in the form of [[o1],[o2],...] has to be given
     if len(X.shape) != 2:
         raise Exception("Sequence array X must be of dimension 2")
@@ -260,10 +257,10 @@ def cooc_loss(x, y):
     return np.mean(np.abs(y-x))
     
 
-def iter_from_X_lengths(X, lengths):
-    warnings.warn(
-        "iter_from_X_lengths is deprecated and will be removed in the future.",
-        DeprecationWarning, stacklevel=2)
+def iter_from_Xlengths(X, lengths):
+    # warnings.warn(
+    #     "iter_from_X_lengths is deprecated and will be removed in the future.",
+    #     DeprecationWarning, stacklevel=2)
     if lengths is None:
         yield 0, len(X)
     else:
