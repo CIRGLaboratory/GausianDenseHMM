@@ -24,7 +24,7 @@ class GammaGaussianHMM(GaussianHMM):
                  startprob_prior=1.0, transmat_prior=1.0,
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
-                 params="stmc", init_params="stmc", logging_monitor=None):
+                 params="stmc", init_params="stmc", logging_monitor=None, early_stopping=True):
 
         self.matrix_initializer = None
         if init_params is None:
@@ -55,7 +55,7 @@ class GammaGaussianHMM(GaussianHMM):
         self.n_hidden_states = n_hidden_states
         self.n_dims = n_dims   # TODO: ogólne n_dims, bez zapisywania atrybutu
         self.logging_monitor = logging_monitor if logging_monitor is not None else HMMLoggingMonitor()
-
+        self.early_stopping = early_stopping
         if self.matrix_initializer is not None and self.n_dims is not None:
             self._init_matrices_using_initializer(self.matrix_initializer)
 
@@ -208,7 +208,7 @@ class GammaGaussianHMM(GaussianHMM):
                     self.logging_monitor.log(emname(iter, 'aM'), log_dict)
 
             self.monitor_.report(total_logprob)
-            if self.monitor_.converged:
+            if self.monitor_.converged and self.early_stopping:
                print("Exiting EM early ... (convergence tol)")
                break
 
@@ -499,7 +499,8 @@ class StandardGaussianHMM(GammaGaussianHMM):
                  startprob_prior=1.0, transmat_prior=1.0,
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
-                 params="stmc", init_params="stmc", logging_monitor=None):
+                 params="stmc", init_params="stmc", logging_monitor=None,
+                 early_stopping=True):
 
         super(StandardGaussianHMM, self).__init__(n_hidden_states=n_hidden_states,
                                                   n_dims=n_dims,
@@ -517,7 +518,8 @@ class StandardGaussianHMM(GammaGaussianHMM):
                                                   verbose=verbose,
                                                   params=params,
                                                   init_params=init_params,
-                                                  logging_monitor=logging_monitor)
+                                                  logging_monitor=logging_monitor,
+                                                  early_stopping=early_stopping)
 
 
     def _compute_metrics(self, X, lengths, stats, em_iter, ident,
@@ -584,7 +586,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
                  params="stmc", init_params="stmc", logging_monitor=None,
-                 mstep_config=None, opt_schemes=None):
+                 mstep_config=None, opt_schemes=None, early_stopping=True):
 
         super(GaussianDenseHMM, self).__init__(n_hidden_states=n_hidden_states,
                                                n_dims=n_dims,
@@ -602,7 +604,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                                verbose=verbose,
                                                params=params,
                                                init_params=init_params,
-                                               logging_monitor=logging_monitor)
+                                               logging_monitor=logging_monitor,
+                                               early_stopping=early_stopping)
 
         mstep_config = {} if mstep_config is None else mstep_config
         self.opt_schemes = self.SUPPORTED_OPT_SCHEMES if opt_schemes is None else set(opt_schemes)
@@ -659,12 +662,12 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
             means = tf.placeholder(name="means", dtype=tf.float64,
                                    shape=[self.n_components, self.n_dims])
-            if self.covariance_type in ["full", "tied"]:
-                covars = tf.placeholder(name="covars", dtype=tf.float64,
-                                        shape=[self.n_components, self.n_dims, self.n_dims])
-            else:
-                covars = tf.placeholder(name="covars", dtype=tf.float64,
-                                        shape=[self.n_components, self.n_dims])
+            # if self.covariance_type in ["full", "tied"]:
+            covars = tf.placeholder(name="covars", dtype=tf.float64,
+                                    shape=[self.n_components, self.n_dims, self.n_dims])
+            # else:
+            #     covars = tf.placeholder(name="covars", dtype=tf.float64,
+            #                             shape=[self.n_components, self.n_dims])
             # M = B_log_ker
             # B = A_log_ker
             # B0 = pi_log_ker
@@ -762,7 +765,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                  trainable=('z0' in self.trainables))
             #  TODO: czy dodać u, w? zależy czy em czy cooc
 
-            # if self.representations == 'uzz0-normal':  # TODO: możliwe powinny być reprezentacje jak wcześniej czy niekoniecznie skoro embedingi emisyjne są sztuczne?
+            # if self.representations == 'uzz0-normal':
 
 
 
@@ -771,8 +774,12 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # Compute scalar products
             # if self.representations == 'uzz0-normal':  # Convention here: B is m x n -->  new: T x n
             A_scalars = tf.matmul(u, z, name="A_scalars")
-            distr = tfd.MultivariateNormalTriL(self.means_, self._covars_)
-            B_scalars = tf.concat([[distr.log_prob(X[i, j])[tf.newaxis, :] for i in range(X.shape[0])] for j in range(X.shape[1])], axis=1, name="B_scalars")
+            # distr = tfd.MultivariateNormalTriL(self.means_, self._covars_)
+            B_scalars = tf.identity(np.array([[[multivariate_normal.pdf(X[j, i], m, c)
+                                                for m, c in zip(self.means_, self._covars_)]
+                                               for i in range(X.shape[1])]  for j in range(X.shape[0])]),
+                                    name="B_scalars")
+            # B_scalars = tf.concat([[distr.log_prob(X[i, j])[tf.newaxis, :] for i in range(X.shape[0])] for j in range(X.shape[1])], axis=1, name="B_scalars")
             pi_scalars = tf.matmul(u, z0, name="pi_scalars")
 
             # elif self.representations == 'vzz0':
@@ -783,7 +790,6 @@ class GaussianDenseHMM(GammaGaussianHMM):
             if self.kernel == 'exp' or self.kernel == tf.exp:  # INFO: kernel - sposób przetwarzania embedingów na macierze
 
                 A_from_reps = tf.nn.softmax(A_scalars, axis=0)
-                #  TODO: trzeba przekazać dane, może w jakimś inicie?
                 B_from_reps = B_scalars  # wektor  (\phi_i(y_t))_{i=1}^n
                 pi_from_reps = tf.nn.softmax(pi_scalars, axis=0)
 
@@ -839,8 +845,6 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.session.run(self.init_)
         self.startprob_ = self.session.run(self.pi_from_reps_hmmlearn)
         self.transmat_ = self.session.run(self.A_from_reps_hmmlearn)
-        # self.means_ = self.session.run(self.means)
-        # self.covars_ = self.session.run(self.covars)
 
     def _init(self, X, lengths=None):
         X, n_seqs, max_seqlen = super(GaussianDenseHMM, self)._init(X, lengths=lengths)
@@ -869,7 +873,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                 self.covars:  self.covars_}
 
             self.session.run(self.loss_update, feed_dict=train_input_dict)
-            print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
+            # TODO: if verbose
+            # print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
 
         A, pi = self.session.run([self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn])
         self.transmat_ = A
