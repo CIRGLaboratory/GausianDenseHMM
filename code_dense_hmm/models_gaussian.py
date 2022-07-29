@@ -1,3 +1,5 @@
+import sys
+from collections import deque
 from hmmlearn.hmm import GaussianHMM
 from hmmlearn.base import ConvergenceMonitor, log_mask_zero, check_array
 import tensorflow_probability as tfp
@@ -10,10 +12,129 @@ from scipy.stats import multivariate_normal
 from hmmlearn import _hmmc as _hmmcmod
 from hmmlearn  import _utils
 from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, \
-    empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian
-from models import HMMLoggingMonitor
+    empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian, dtv, find_permutation
+# from models import HMMLoggingMonitor
 import time
 import itertools
+import wandb
+# TODO: numba?
+
+
+class HMMLoggingMonitor(ConvergenceMonitor):
+
+    def __init__(self, tol, n_iter, verbose, log_config=None, wandb_log=False, wandb_params=None, true_vals=None):
+
+        super(HMMLoggingMonitor, self).__init__(tol, n_iter, verbose)
+        self.wandb_log = wandb_log
+        self.accuracy = deque()
+        self._init_time = time.perf_counter()
+
+        self.true_states = dict_get(true_vals, 'states')  # TODO: provide real values for evaluation
+        self.true_transmat = dict_get(true_vals, 'transmat')  # TODO: use dict_get(dict, key, default=None)
+        self.true_startprob = dict_get(true_vals, 'startprob')
+        self.true_means = dict_get(true_vals, 'means')
+        self.true_covars = dict_get(true_vals, 'covars')
+
+        # Default log_config
+        self.log_config = {
+            'exp_folder': None,  # root experiment folder
+            # 'plot_folder': None, # folder to store plots in
+            'log_folder': None,  # folder to store array-data in
+            'metrics_initial': True,  # whether to compute metrics before first estep
+            'metrics_after_mstep_every_n_iter': 1,  # frequency of computing metrics after mstep or none
+            'metrics_after_estep_every_n_iter': 1,  # frequency of computing metrics after estep or none
+            'metrics_after_convergence': True,  # whether to compute metrics after the training
+            'gamma_after_estep': False,  # whether to compute gammas (they are very large!)
+            'gamma_after_mstep': False,
+            'test_gamma_after_estep': False,  # whether to compute test gammas ..
+            'test_gamma_after_mstep': False,
+            'samples_after_estep': None,  # (n_seqs, seqlen) sample to draw after estep or None
+            'samples_after_mstep': None,  # (n_seqs, seqlen) sample to draw after mstep or None
+            'samples_after_cooc_opt': None  # (n_seqs, seqlen) sample to draw after fitting model's coocs
+        }
+
+        if log_config is not None:
+            self.log_config.update(dict(log_config))
+
+        # Default wandb parameters
+        t = time.localtime()
+        self.wandb_params = {
+            "init": {
+                "project": "gaussian-dense-hmm",
+                "entity": "kabalce",
+                "save_code": True,
+                "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+                "job_type": "n=0-s=0-T=0-simple=True",
+                "name": "dense--l=0-lr=0-epochs=0"
+            },
+            "config": {
+                "n": 0,
+                "s": 0,
+                "T": 0
+            }
+        }
+
+        if wandb_params is not None:
+            if "init" in wandb_params.keys():
+                self.wandb_params["init"].update(wandb_params["init"])
+            if "config" in wandb_params.keys():
+                self.wandb_params["config"].update(wandb_params["config"])
+
+        # if self.wandb_log:
+        #     wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
+
+    def _check_log_path(self):
+        log_conf = self.log_config
+        exp_folder = '.' if log_conf['exp_folder'] is None else log_conf['exp_folder']
+        log_folder = '/data' if log_conf['log_folder'] is None else log_conf['log_folder']
+        log_path = check_dir(exp_folder + log_folder)
+        return log_path
+
+    def log(self, file_name, log_dict, key_func=None):  # stats, em_iter, ident):
+        log_path = self._check_log_path()
+        self._log(log_path, file_name, log_dict, key_func)
+
+    def _log(self, log_path, file_name, log_dict, key_func=None):
+        if key_func is not None:
+            np.savez_compressed(log_path + '/' + file_name, **{key_func(key): log_dict[key] for key in log_dict.keys()})
+        else:
+            np.savez_compressed(log_path + '/' + file_name, **log_dict)
+
+    def emname(self, em_iter, ident):
+        return "logs_em=%d_ident=%s" % (int(em_iter), ident)
+
+    def report(self, log_prob, preds=None, transmat=None, startprob=None, means=None, covars=None):
+        super(HMMLoggingMonitor, self).report(log_prob)
+        if self.wandb_log:
+            # provide metrics
+            if (self.true_states is None) | (preds is None):
+                wandb.log({
+                    "total_log_prob": log_prob,
+                    "accuracy": None,
+                    "time": time.perf_counter() - self._init_time,
+                    "transmat_dtv": None,
+                    "startprob_dtv": None,
+                    "means_mae": None,
+                    "covars_mae": None
+                })
+            else:
+                perm = find_permutation(preds, self.true_states)
+
+                acc = (self.true_states == np.array([perm[i] for i in preds])).mean() if preds is not None else None
+                transmat_dtv = dtv(transmat, self.true_transmat[perm, :][:, perm]) if (transmat is not None) & (self.true_transmat is not None) else None
+                startprob_dtv = dtv(startprob, self.true_startprob[perm]) if (startprob is not None) & (self.true_startprob is not None) else None
+                means_mae = abs(self.true_means[perm] - means[:, 0]).mean() if (means is not None) & (self.true_means is not None) else None
+                covars_mae = abs(self.true_covars[perm] - covars[:, 0, 0]).mean() if (covars is not None) & (self.true_covars is not None) else None
+
+            wandb.log({
+                "total_log_prob": log_prob,
+                "accuracy": acc,
+                "time": time.perf_counter() - self._init_time,
+                "transmat_dtv": transmat_dtv,
+                "startprob_dtv": startprob_dtv,
+                "means_mae": means_mae,
+                "covars_mae": covars_mae
+            })
 
 
 class GammaGaussianHMM(GaussianHMM):
@@ -179,7 +300,7 @@ class GammaGaussianHMM(GaussianHMM):
 
         log_config = self.logging_monitor.log_config
         emname = self.logging_monitor.emname
-        self.monitor_._reset()
+        self.logging_monitor._reset()
         for iter in tqdm(range(self.n_iter), desc="Fit model"):
 
             stats = self._initialize_sufficient_statistics(n_seqs, max_seqlen)  # TODO:  porównaj
@@ -200,6 +321,7 @@ class GammaGaussianHMM(GaussianHMM):
 
             # XXX must be before convergence check, because otherwise
             #     there won't be any updates for the case ``n_iter=1``.
+
             self._do_mstep(stats)
 
             if log_config['metrics_after_mstep_every_n_iter'] is not None:
@@ -207,8 +329,9 @@ class GammaGaussianHMM(GaussianHMM):
                     log_dict = self._compute_metrics(X, lengths, stats, iter, 'aM', val, val_lengths)
                     self.logging_monitor.log(emname(iter, 'aM'), log_dict)
 
-            self.monitor_.report(total_logprob)
-            if self.monitor_.converged and self.early_stopping:
+            self.logging_monitor.report(total_logprob, preds=self.predict(X, lengths), transmat=self.transmat_,
+                                        startprob=self.startprob_, means=self.means_, covars=self.covars_)
+            if self.logging_monitor.converged and self.early_stopping:
                print("Exiting EM early ... (convergence tol)")
                break
 
@@ -860,6 +983,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
     """ Learns representations, recovers transition matrices and sets them """
 
     def _do_mstep(self, stats):
+
         if self.session is None:
             raise Exception("Uninitialized TF Session. You must call _init first")
 
@@ -890,9 +1014,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
         # Based on Huang, Acero, Hon, "Spoken Language Processing",
         # p. 443 - 445
         denom = stats['post'][:, None]
-        if 'm' in self.params:
-            self.means_ = ((means_weight * means_prior + stats['obs'])
+        if 'm' in self.params:  # INFO: Update parameters only if new value is defined
+            vals_tmp = ((means_weight * means_prior + stats['obs'])
                            / (means_weight + denom))
+            if np.isnan(vals_tmp).sum() == 0:
+                self.means_ = vals_tmp
 
         if 'c' in self.params:
             covars_prior = self.covars_prior
@@ -905,10 +1031,14 @@ class GaussianDenseHMM(GammaGaussianHMM):
                        - 2 * self.means_ * stats['obs']
                        + self.means_ ** 2 * denom)
                 c_d = max(covars_weight - 1, 0) + denom
-                self._covars_ = (covars_prior + c_n) / np.maximum(c_d, 1e-5)
+                vals_tmp = (covars_prior + c_n) / np.maximum(c_d, 1e-5)
+                if np.isnan(vals_tmp).sum() == 0:
+                    self._covars_ = vals_tmp
                 if self.covariance_type == 'spherical':
-                    self._covars_ = np.tile(self._covars_.mean(1)[:, None],
+                    vals_tmp = np.tile(self._covars_.mean(1)[:, None],
                                             (1, self._covars_.shape[1]))
+                    if np.isnan(vals_tmp).sum() == 0:
+                        self._covars_ = vals_tmp
             elif self.covariance_type in ('tied', 'full'):
                 c_n = np.empty((self.n_components, self.n_features,
                                 self.n_features))
@@ -922,11 +1052,16 @@ class GaussianDenseHMM(GammaGaussianHMM):
                               * stats['post'][c])
                 cvweight = max(covars_weight - self.n_features, 0)
                 if self.covariance_type == 'tied':
-                    self._covars_ = ((covars_prior + c_n.sum(axis=0)) /
+                    vals_tmp = ((covars_prior + c_n.sum(axis=0)) /
                                      (cvweight + stats['post'].sum()))
+                    if np.isnan(vals_tmp).sum() == 0:
+                        self._covars_ = vals_tmp
                 elif self.covariance_type == 'full':
-                    self._covars_ = ((covars_prior + c_n) /
+                    vals_tmp = ((covars_prior + c_n) /
                                      (cvweight + stats['post'][:, None, None]))
+                    if np.isnan(vals_tmp).sum() == 0:
+                        self._covars_ = vals_tmp
+
 
     def _compute_metrics(self, X, lengths, stats, em_iter, ident,
                          val=None, val_lengths=None):
