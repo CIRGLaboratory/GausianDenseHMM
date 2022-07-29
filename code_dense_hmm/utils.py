@@ -4,6 +4,7 @@ from sklearn.utils import check_array, check_random_state
 import numpy as np
 import os
 import datetime as dt
+from scipy.optimize import linear_sum_assignment
 
 # Following is used in experiment.py
 
@@ -280,4 +281,56 @@ def check_is_fitted(estimator, attribute):
             "This %s instance is not fitted yet. Call 'fit' with "
             "appropriate arguments before using this method."
             % type(estimator).__name__)
-    
+
+def dtv(a1, a2):
+    return (abs(a1 - a2) / 2).sum() / a1.shape[0]
+
+
+def apply_perm(a, perm):
+    if a.shape[1] == 1:
+        return a
+    res = np.zeros_like(a)
+    for i in range(a.shape[0]):
+        res[perm[i], :] = a[i, :]
+    return res
+
+
+def permute_embeddings(embeddings, perm):
+    if embeddings is None:
+        return None
+    else:
+        return [
+            apply_perm(embeddings[0], perm).tolist(),
+            apply_perm(embeddings[1].transpose(), perm).transpose().tolist(),
+            embeddings[2].tolist()
+        ]
+
+# from ssm
+def compute_state_overlap(z1, z2, K1=None, K2=None):
+    assert z1.dtype == int and z2.dtype == int
+    assert z1.shape == z2.shape
+    assert z1.min() >= 0 and z2.min() >= 0
+
+    K1 = z1.max() + 1 if K1 is None else K1
+    K2 = z2.max() + 1 if K2 is None else K2
+
+    overlap = np.zeros((K1, K2))
+    for k1 in range(K1):
+        for k2 in range(K2):
+            overlap[k1, k2] = np.sum((z1 == k1) & (z2 == k2))
+    return overlap
+
+
+def find_permutation(z1, z2, K1=None, K2=None):
+    overlap = compute_state_overlap(z1, z2, K1=K1, K2=K2)
+    K1, K2 = overlap.shape
+
+    tmp, perm = linear_sum_assignment(-overlap)
+    assert np.all(tmp == np.arange(K1)), "All indices should have been matched!"
+
+    # Pad permutation if K1 < K2
+    if K1 < K2:
+        unused = np.array(list(set(np.arange(K2)) - set(perm)))
+        perm = np.concatenate((perm, unused))
+
+    return perm

@@ -12,7 +12,7 @@ Chcemy sprawdzić:
 import numpy as np
 import itertools
 from hmmlearn import hmm
-from models_gaussian import StandardGaussianHMM, GaussianDenseHMM
+from models_gaussian import StandardGaussianHMM, GaussianDenseHMM, HMMLoggingMonitor
 import time
 from tqdm import tqdm
 from ssm.util import find_permutation
@@ -20,33 +20,14 @@ import pickle
 import json
 from pathlib import Path
 import wandb
+from utils import dtv, permute_embeddings
+import scipy.stats as stats
+import matplotlib.pyplot as plt
 
 np.random.seed(2022)
 
-# TODO: handle nans in dense, when the model collapses to less states
-# TODO: logging to wandb
 # TODO: recheck permuting embeddings
-# TODO: decrease covergence tolerance
 
-# TODO: log in wandb
-# wandb.init(project="my-test-project",
-#            entity="kabalce",
-#            save_code=True,
-#            group="test1",
-#            job_type="test1.1",
-#            name="testuje nazwę"  # nazwa wyświetlana na lewej stronie
-#            )
-#
-# wandb.config = {
-#   "learning_rate": 0.001,
-#   "epochs": 100,
-#   "batch_size": 128
-# }
-#
-# for i in range(10):
-#     wandb.log({"loss": i/10,  'kos': .454})  # różne klucze  na różnych wykresach, różne odpalenia na jednym wykresie
-
-# TODO:  draw  pdfs
 simple_model = {"mu": 10,
                 "sigma": 1}
 
@@ -67,7 +48,8 @@ mstep_cofigs = [{"em_lr": 0.0001, "em_epochs": 50},
                 {"em_lr": 0.1, "em_epochs": 5},
                 {"em_lr": 0.1, "em_epochs": 10}]
 
-em_iters = [10, 25, 50]
+EM_ITER = 50
+TOLERANCE = 1e-4
 
 
 def prepare_params(n, simple_model=True):
@@ -94,26 +76,6 @@ def my_hmm_sampler(pi, A,  mu, sigma, T):
     return X, Y
 
 
-def dtv(a1, a2):
-    return (abs(a1 - a2) / 2).sum() / a1.shape[0]
-
-
-def apply_perm(a, perm):
-    if a.shape[1] == 1:
-        return a
-    res = np.zeros_like(a)
-    for i in range(a.shape[0]):
-        res[perm[i], :] = a[i, :]
-    return res
-
-def permute_embeddings(embeddings, perm):
-    return [
-        apply_perm(embeddings[0], perm).tolist(),
-        apply_perm(embeddings[1].transpose(), perm).transpose().tolist(),
-        embeddings[2].tolist()
-    ]
-
-
 def provide_log_info(pi, A, mu, sigma, X_true, model,  time_tmp, perm, preds_perm, mstep_cofig=None, embeddings=None):
     return [dict(time=time_tmp,
                  acc=(X_true == preds_perm).mean(),
@@ -127,97 +89,151 @@ def provide_log_info(pi, A, mu, sigma, X_true, model,  time_tmp, perm, preds_per
                  pi_est=model.startprob_.tolist(),
                  preds=preds_perm.tolist(),
                  mstep_cofig=mstep_cofig,
-                 embeddings=permute_embeddings(embeddings, perm) if embeddings != None else None)]
+                 embeddings=permute_embeddings(embeddings, perm))]
 
+
+def init_model(model, A_init, pi_init, m_init, c_init):
+    model.transmat_ = A_init
+    model.startprob_ = pi_init
+    model.means_ = m_init
+    model._covars_ = c_init
+
+
+def predict_permute(model, data, X_true):
+    preds = np.concatenate([model.predict(x[1]) for x in data])
+    perm = find_permutation(preds, X_true)
+    return np.array([perm[i] for i in preds]), perm
+
+
+def init_experiment(dsize, simple_model):
+    s = dsize[0]
+    T = dsize[1]
+    n = dsize[2]
+    pi, A, mu, sigma = prepare_params(n, simple_model)
+
+    data = [my_hmm_sampler(pi, A, mu, sigma, T) for _ in range(s)]
+    X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
+    Y_true = np.concatenate([x[1] for x in data])  # observations
+    lengths = [len(x[1]) for x in data]
+
+    result = {
+        "number_of_sequences": s,
+        "sequence_length": T,
+        "number_of_hidden_states": n,
+        "pi": pi.tolist(),
+        "A": A.tolist(),
+        "mu": mu.tolist(),
+        "sigma": sigma.tolist(),
+        "simple_model": simple_model,
+        "data": [X_true.tolist(), Y_true.tolist(), lengths],
+        "hmmlearn_runs": [],
+        "standard_gaussian_runs": [],
+        "gaussian_dense_runs": []
+    }
+
+    true_values = {
+        "states": X_true,
+        "transmat": A,
+        "startprob": pi,
+        "means": mu,
+        "covars": sigma
+    }
+
+    wandb_params = {
+        "init": {
+            "project": "gaussian-dense-hmm",
+            "entity": "cirglaboratory",
+            "save_code": True,
+            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
+            "name": f"PDFs",
+            "reinit": True
+        },
+        "config": {
+            "n": n,
+            "s": s,
+            "T": T
+        }
+    }
+
+    wandb.init(**wandb_params["init"], config=wandb_params["config"])
+
+    x = np.linspace(min(mu) - 3 * max(sigma), max(mu) + 3 * max(sigma), 10000)
+    for i in range(n):
+        plt.plot(x, stats.norm.pdf(x, mu[i], sigma[i]), label=str(i))
+    plt.title(f"Normal PDFs n={n}-s={s}-T={T}-simple={simple_model}")
+    wandb.log({"Normal densities": wandb.Image(plt)})
+    plt.close()
+
+    return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data
 
 def run_experiment(results_dir, simple_model=True):
     for dsize in tqdm(data_sizes, desc=f"SIMPLE={simple_model}"):
-        s = dsize[0];  T = dsize[1]; n = dsize[2]
-        pi, A, mu, sigma = prepare_params(n, simple_model)
+        s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data = init_experiment(dsize, simple_model)
 
-        data = [my_hmm_sampler(pi, A, mu, sigma, T) for _ in range(s)]
-        X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
-        Y_true = np.concatenate([x[1] for x in data])  # observations
-        lengths = [len(x[1]) for x in data]
+        # GaussianHMM - hmmlearn implementation
+        hmml = hmm.GaussianHMM(n, n_iter=EM_ITER, covariance_type='diag', init_params="", params="stmc")
+        hmml._init(Y_true)
+        # Randomly chosen initial parameters
+        A_init = hmml.transmat_
+        pi_init = hmml.startprob_
+        m_init = hmml.means_
+        c_init = hmml._covars_
 
-        result = {
-            "number_of_sequences": s,
-            "sequence_length": T,
-            "number_of_hidden_states": n,
-            "pi": pi.tolist(),
-            "A": A.tolist(),
-            "mu": mu.tolist(),
-            "sigma": sigma.tolist(),
-            "simple_model": simple_model,
-            "data": [X_true.tolist(), Y_true.tolist(), lengths],
-            "hmmlearn_runs": [],
-            "standard_gaussian_runs": [],
-            "gaussian_dense_runs": []
-        }
+        start = time.perf_counter()
+        hmml.fit(Y_true, lengths)
+        time_tmp = time.perf_counter() - start
 
-        for em_it in em_iters:
-            # GaussianHMM - hmmlearn implementation
-            hmml = hmm.GaussianHMM(n, n_iter=2, covariance_type='diag', init_params="", params="stmc")  # TODO!!  em_it
-            hmml._init(Y_true)
-            # Randomly chosen initial parameters
-            A_init = hmml.transmat_
-            pi_init = hmml.startprob_
-            m_init = hmml.means_
-            c_init = hmml._covars_
+        preds_perm, perm = predict_permute(hmml, data, X_true)
+        result['hmmlearn_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
+                                                    hmml,  time_tmp, perm, preds_perm)
+
+        # GaussianHMM - custom implementation
+        wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": "standard"})
+        wandb.init(**wandb_params["init"], config=wandb_params["config"])
+
+        hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
+                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values)
+
+        standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="", params="stmc",
+                                          early_stopping=False, logging_monitor=hmm_monitor)
+        init_model(standardhmm, A_init, pi_init, m_init, c_init)
+
+        start = time.perf_counter()
+        standardhmm.fit(Y_true, lengths)
+        time_tmp = time.perf_counter() - start
+
+        preds_perm, perm = predict_permute(standardhmm, data, X_true)
+        result['hmmlearn_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
+                                                    standardhmm, time_tmp, perm, preds_perm)
+
+        # GaussianDenseHMM - custom implementation
+        for mstep_cofig, l in itertools.product(mstep_cofigs, ls):
+            # allow only embeddings of size smaller or equal the number of hidden states
+            if l > n:
+                continue
+
+            wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": f"dense--l={l}-lr={mstep_cofig['em_lr']}-epochs={mstep_cofig['em_epochs']}"})
+            wandb_params["config"].update({**mstep_cofig, "l": l})
+            wandb.init(**wandb_params["init"], config=wandb_params["config"])
+            hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
+                                            wandb_log=True, wandb_params=wandb_params, true_vals=true_values)
+
+            densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l},
+                                        covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
+                                        init_params="", params="stmc", early_stopping=False)
+            init_model(densehmm, A_init, pi_init, m_init, c_init)
 
             start = time.perf_counter()
-            hmml.fit(Y_true, lengths)
+            densehmm.fit(Y_true, lengths)
             time_tmp = time.perf_counter() - start
 
-            preds = np.concatenate([hmml.predict(x[1]) for x in data])
-            perm = find_permutation(preds, X_true)
-            preds_perm = np.array([perm[i] for i in preds])
+            preds_perm, perm = predict_permute(densehmm, data, X_true)
+
             result['hmmlearn_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
-                                                        hmml,  time_tmp, perm, preds_perm)
-
-            # GaussianHMM - custom implementation
-            standardhmm = StandardGaussianHMM(n, em_iter=2, covariance_type='diag', init_params="", params="stmc")  # TODO!!  em_it
-            standardhmm.transmat_ = A_init
-            standardhmm.startprob_ = pi_init
-            standardhmm.means_ = m_init
-            standardhmm._covars_ = c_init
-
-            start = time.perf_counter()
-            standardhmm.fit(Y_true, lengths)
-            time_tmp = time.perf_counter() - start
-
-            preds = np.concatenate([standardhmm.predict(x[1]) for x in data])
-            perm = find_permutation(preds, X_true)
-            preds_perm = np.array([perm[i] for i in preds])
-            result['hmmlearn_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
-                                                        standardhmm, time_tmp, perm, preds_perm)
-
-            # GaussianDenseHMM - custom implementation
-            for mstep_cofig, l in itertools.product(mstep_cofigs, ls):
-                # allow only embeddings of size smaller or equal the number of hidden states
-                if l > n:
-                    continue
-
-                densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l},
-                                            covariance_type='diag', em_iter=2,  # TODO!! em_it
-                                            init_params="", params="stmc")
-                densehmm.transmat_ = A_init
-                densehmm.startprob_ = pi_init
-                densehmm.means_ = m_init
-                densehmm._covars_ = c_init
-
-                start = time.perf_counter()
-                densehmm.fit(Y_true, lengths)
-                time_tmp = time.perf_counter() - start
-
-                preds = np.concatenate([densehmm.predict(x[1]) for x in data])
-                perm = find_permutation(preds, X_true)
-                preds_perm = np.array([perm[i] for i in preds])
-                # TODO: zapisz embedingi
-                result['hmmlearn_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
-                                                            densehmm, time_tmp, perm, preds_perm,
-                                                            {**mstep_cofig, "l_uz": l},
-                                                            embeddings=densehmm.get_representations())
+                                                        densehmm, time_tmp, perm, preds_perm,
+                                                        {**mstep_cofig, "l_uz": l},
+                                                        embeddings=densehmm.get_representations())
 
         with open(f"{results_dir}/s={s}_T={T}_n={n}_simple={simple_model}.json", "w") as f:
             json.dump(result, f, indent=4)
@@ -226,8 +242,11 @@ def run_experiment(results_dir, simple_model=True):
 
 
 if __name__ == "__main__":
+    start = time.perf_counter()
     t = time.localtime()
     results_dir = f'gaussian_dense_hmm_benchmark/basic-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
     Path(results_dir).mkdir(exist_ok=True, parents=True)
+
     run_experiment(results_dir, simple_model=True)
-    run_experiment(results_dir, simple_model=False)
+    # run_experiment(results_dir, simple_model=False)
+    print("DONE. All computations took:", time.perf_counter() - start, "seconds.")
