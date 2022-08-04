@@ -26,30 +26,23 @@ import matplotlib.pyplot as plt
 
 np.random.seed(2022)
 
-# TODO: recheck permuting embeddings
-
 simple_model = {"mu": 10,
                 "sigma": 1}
 
 complicated_model = {"mu": 5,
                      "sigma": 2}
 
-data_sizes = [
-    # (10, 12, 3), (10, 12, 5), (10,  100, 3), (10,  100, 5),  # with 2 iterations takes 9 minutes
-    #           (100, 1000, 5),
-              (100, 1000, 50)]  # (s, T, n)
+data_sizes = [(10,  100, 4)]  # (s, T, n)
 
-ls = (2, 3, 5, 7, 10, 20)
+ls = (2, 3, 4)
 
-mstep_cofigs = [{"em_lr": 0.0001, "em_epochs": 50},
-                {"em_lr": 0.001, "em_epochs": 5},
+mstep_cofigs = [{"em_lr": 0.0001, "em_epochs": 10},
+                {"em_lr": 0.0001, "em_epochs": 25},
+                {"em_lr": 0.0001, "em_epochs": 50},
                 {"em_lr": 0.001, "em_epochs": 10},
-                {"em_lr": 0.001, "em_epochs": 50},
+                {"em_lr": 0.001, "em_epochs": 25},
                 {"em_lr": 0.01, "em_epochs": 5},
-                {"em_lr": 0.01, "em_epochs": 10},
-                {"em_lr": 0.01, "em_epochs": 50},
-                {"em_lr": 0.1, "em_epochs": 5},
-                {"em_lr": 0.1, "em_epochs": 10}]
+                {"em_lr": 0.01, "em_epochs": 10}]
 
 EM_ITER = 50
 TOLERANCE = 1e-4
@@ -108,6 +101,13 @@ def predict_permute(model, data, X_true):
     return np.array([perm[i] for i in preds]), perm
 
 
+def em_scheduler(max_lr, it):
+    if it <= np.ceil(EM_ITER / 3):
+        return max_lr * np.cos(3 * (np.ceil(EM_ITER / 3) - it) * np.pi * .33 / EM_ITER)
+    else:
+        return max_lr * np.cos((it - np.ceil(EM_ITER / 3)) * np.pi * .66 / EM_ITER) ** 3
+
+
 def init_experiment(dsize, simple_model):
     s = dsize[0]
     T = dsize[1]
@@ -147,15 +147,16 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
-            "job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
+            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",  # v2
+            "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
         },
         "config": {
             "n": n,
             "s": s,
-            "T": T
+            "T": T,
+            "model": None
         }
     }
 
@@ -168,10 +169,17 @@ def init_experiment(dsize, simple_model):
     wandb.log({"Normal densities": wandb.Image(plt)})
     plt.close()
 
+    plt.plot([em_scheduler(1, it) for it in range(EM_ITER)])
+    plt.title("Learning rate schedule")
+    wandb.log({"LR schedule": wandb.Image(plt)})
+    plt.close()
+
     return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data
 
+
 def run_experiment(results_dir, simple_model=True):
-    for dsize in tqdm(data_sizes, desc=f"SIMPLE={simple_model}"):
+    for rep in tqdm(range(10), desc=f"Experiment"):
+        dsize = data_sizes[0]
         s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data = init_experiment(dsize, simple_model)
 
         # GaussianHMM - hmmlearn implementation
@@ -193,10 +201,12 @@ def run_experiment(results_dir, simple_model=True):
 
         # GaussianHMM - custom implementation
         wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": "standard"})
+        wandb_params["config"].update({"model": "standard"})
         wandb.init(**wandb_params["init"], config=wandb_params["config"])
 
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values)
+                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                        log_config={'metrics_after_convergence': True})
 
         standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="", params="stmc",
                                           early_stopping=False, logging_monitor=hmm_monitor)
@@ -212,17 +222,19 @@ def run_experiment(results_dir, simple_model=True):
 
         # GaussianDenseHMM - custom implementation
         for mstep_cofig, l in itertools.product(mstep_cofigs, ls):
-            # allow only embeddings of size smaller or equal the number of hidden states
-            if l > n:
-                continue
+            # # allow only embeddings of size smaller or equal the number of hidden states
+            # if l > n:
+            #     continue
 
-            wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": f"dense--l={l}-lr={mstep_cofig['em_lr']}-epochs={mstep_cofig['em_epochs']}"})
-            wandb_params["config"].update({**mstep_cofig, "l": l})
+            wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
+                                         "name": f"dense--l={l}-lr={mstep_cofig['em_lr']}-epochs={mstep_cofig['em_epochs']}"})
+            wandb_params["config"].update({**mstep_cofig, "l": l, "model": "dense"})
             wandb.init(**wandb_params["init"], config=wandb_params["config"])
             hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                            wandb_log=True, wandb_params=wandb_params, true_vals=true_values)
+                                            wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                            log_config={'metrics_after_convergence': True})
 
-            densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l},
+            densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, "em_scheduler": em_scheduler},
                                         covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
                                         init_params="", params="stmc", early_stopping=False)
             init_model(densehmm, A_init, pi_init, m_init, c_init)
@@ -238,7 +250,7 @@ def run_experiment(results_dir, simple_model=True):
                                                         {**mstep_cofig, "l_uz": l},
                                                         embeddings=densehmm.get_representations())
 
-        with open(f"{results_dir}/s={s}_T={T}_n={n}_simple={simple_model}.json", "w") as f:
+        with open(f"{results_dir}/s={s}_T={T}_n={n}_simple={simple_model}_{rep}.json", "w") as f:
             json.dump(result, f, indent=4)
 
     return None
@@ -251,5 +263,5 @@ if __name__ == "__main__":
     Path(results_dir).mkdir(exist_ok=True, parents=True)
 
     run_experiment(results_dir, simple_model=True)
-    # run_experiment(results_dir, simple_model=False)
+    run_experiment(results_dir, simple_model=False)
     print("DONE. All computations took:", time.perf_counter() - start, "seconds.")

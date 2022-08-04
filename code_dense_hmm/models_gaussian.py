@@ -124,7 +124,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 transmat_dtv = dtv(transmat, self.true_transmat[perm, :][:, perm]) if (transmat is not None) & (self.true_transmat is not None) else None
                 startprob_dtv = dtv(startprob, self.true_startprob[perm]) if (startprob is not None) & (self.true_startprob is not None) else None
                 means_mae = abs(self.true_means[perm] - means[:, 0]).mean() if (means is not None) & (self.true_means is not None) else None
-                covars_mae = abs(self.true_covars[perm] - covars[:, 0, 0]).mean() if (covars is not None) & (self.true_covars is not None) else None
+                covars_mae = abs(self.true_covars[perm] - covars.reshape(-1)).mean() if (covars is not None) & (self.true_covars is not None) else None
 
             wandb.log({
                 "total_log_prob": log_prob,
@@ -883,7 +883,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
                 covars_cooc = tf.get_variable(name="covars_cooc", dtype=tf.float64,
                                               shape=[self.n_components, self.n_dims],  # TODO: adjust for multivariate
-                                              initializer=tf.initializers.constant(X.std()),
+                                              initializer=tf.random_uniform_initializer(X.std() / 100,  X.std()),
                                               # constraint=tf.keras.constraints.NonNeg(),
                                               trainable=('c' in self.trainables))  # .add_weight(constraint=tf.keras.constraints.NonNeg())
 
@@ -897,9 +897,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 self.discrete_nodes = Qs.astype('float64')
 
                 B_scalars_tmp = .5 * (1 + tf.erf(
-                    (self.discrete_nodes[1:-1, np.newaxis] / (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-3) / np.sqrt(2) -
-                     tf.transpose(means_cooc) / (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-3)) / np.sqrt(2)))
-                B_scalars_tmp = tf.concat([np.zeros((1, 3)), B_scalars_tmp, np.ones((1, 3))], axis=0)
+                    (self.discrete_nodes[1:-1, np.newaxis] - tf.transpose(means_cooc)) /
+                     (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-10) / np.sqrt(2)))
+                B_scalars_tmp = tf.concat([np.zeros((1, self.n_components)), B_scalars_tmp, np.ones((1, self.n_components))], axis=0)
                 B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars")
                 self.B_scalars = B_scalars  # TODO: remove
                 self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega = self._build_tf_coocs_graph(
@@ -1097,7 +1097,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             gt_omega = np.matmul(B.T, np.matmul(theta, B))
 
         gt_omega = gt_omega_emp if gt_omega is None else gt_omega
-        log_dict = self._fit_coocs(gt_omega, lengths=lengths, val_lengths=val_lengths)
+        log_dict = self._fit_coocs(gt_omega, X, lengths, val_lengths)
 
         log_dict['cooc_logprobs'] = self.score_individual_sequences(X, lengths)[0]
         if val is not None and val_lengths is not None:
@@ -1109,7 +1109,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         nodes = self.discrete_nodes[:-1].reshape(tuple([1 for _ in range(len(X.shape))] + [-1]))  # TODO: handle unitialized
         return (X < nodes).sum(axis=-1).reshape(-1, 1)
 
-    def _fit_coocs(self, omega_gt, lengths, val_lengths=None):  # TODO: fix parameters
+    def _fit_coocs(self, omega_gt, X, lengths, val_lengths=None):  # TODO: fix parameters
 
         if self.session is None:
             raise Exception("Unintialized session")
@@ -1118,10 +1118,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
         # B_ = self.B_from_reps_hmmlearn
         A_stationary_ = self.A_stationary
         omega_ = self.omega
-        # print( self.session.run(self.B_from_reps_hmmlearn))
         def get_ABA_stationary():
             A = self.session.run(A_)
-            # print(A)
             # TODO: As Tf v1 does not support eigenvector computation for
             # non-symmetric matrices, need to do this with numpy and feed
             # the result into the graph
@@ -1138,8 +1136,18 @@ class GaussianDenseHMM(GammaGaussianHMM):
             cur_loss = self.session.run(self.loss_cooc, feed_dict=feed_dict)
             losses.append(cur_loss)
 
-            if epoch % 1000 == 0:
-                print(cur_loss)
+            # TODO: verbose
+            if epoch % 100 == 0:
+                A, A_stat = get_ABA_stationary()
+                means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
+                self.transmat_ = A
+                self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+                self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
+                self.startprob_ = A_stat
+                self.logging_monitor.report(self._forward_backward_gamma_pass(X, lengths)[1],
+                                            preds=self.predict(X, lengths),
+                                            transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c))
+                # print(cur_loss)
 
         log_dict = {}
         log_dict['cooc_losses'] = losses
@@ -1147,11 +1155,10 @@ class GaussianDenseHMM(GammaGaussianHMM):
         A, A_stat = get_ABA_stationary()
         feed_dict[A_stationary_] = A_stat
         learned_omega = self.session.run(self.omega, feed_dict)
-        # print(learned_omega)
         means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
         self.transmat_ = A
-        self.means_ = np.square(means_c) if np.isnan(means_c).sum() == 0 else self.means_
-        self._covars_ = covars_c if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
+        self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+        self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
         self.startprob_ = A_stat
         self._check()
 
