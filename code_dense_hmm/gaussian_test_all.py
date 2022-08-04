@@ -145,7 +145,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",  # v2
+            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",  
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -161,8 +161,8 @@ def init_experiment(dsize, simple_model):
             "em_epochs":  0,
             "em_iter": EM_ITER,
             "cooc_epochs": 0,
-            "epochs": 0
-            "simple_model": simple_model,
+            "epochs": 0,
+            "simple_model": simple_model
         }
     }
 
