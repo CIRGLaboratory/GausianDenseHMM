@@ -214,7 +214,7 @@ def run_experiment(results_dir, simple_model=True):
 
         wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
                                      "name": f"dense--l={l}-lr={mstep_cofig['cooc_lr']}-epochs={mstep_cofig['cooc_epochs']}"})
-        wandb_params["config"].update(dict(model="dense_cooc_log", m=m, l=l, lr=mstep_cofig['cooc_lr'], em_epochs=0,
+        wandb_params["config"].update(dict(model="dense_cooc_log_abs", m=m, l=l, lr=mstep_cofig['cooc_lr'], em_epochs=0,
                                            em_iter=0, cooc_epochs=mstep_cofig['cooc_epochs'], epochs=mstep_cofig['cooc_epochs']))
 
         wandb.init(**wandb_params["init"], config=wandb_params["config"])

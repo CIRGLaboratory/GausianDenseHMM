@@ -795,7 +795,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # omega[i, j] = P(O_{t} = o_i, O_{t+1} = o_j)
             # omega[i, j] = sum_{kl} B[k, i] theta[k, l] B[l, j] = sum_{kl} p(o_i | s_k) p(s_k, s_l) p(o_j | s_l)
             omega = tf.matmul(tf.transpose(B_scalars), tf.matmul(theta, B_scalars))
-            loss_cooc = tf.reduce_sum(tf.square(tf.log(omega_gt) - tf.log(omega)))
+            loss_cooc = tf.reduce_sum(tf.math.abs(tf.log(omega_gt) - tf.log(omega)))
 
             loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
             return loss_cooc, loss_cooc_update, A_stationary, omega
