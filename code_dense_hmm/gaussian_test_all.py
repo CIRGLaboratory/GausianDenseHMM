@@ -228,7 +228,10 @@ def run_experiment(results_dir, simple_model=True):
                                         discrete_observables=m)
 
             start = time.perf_counter()
-            densehmm.fit_coocs(Y_true, lengths)
+            try:
+                densehmm.fit_coocs(Y_true, lengths)
+            except:
+                0
             time_tmp = time.perf_counter() - start
 
             preds_perm, perm = predict_permute(densehmm, data, X_true)
