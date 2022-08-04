@@ -1137,7 +1137,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             losses.append(cur_loss)
 
             # TODO: verbose
-            if epoch % 100 == 0:
+            if epoch % 1000 == 0:
                 A, A_stat = get_ABA_stationary()
                 means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
                 self.transmat_ = A
