@@ -145,7 +145,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",  
+            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -199,14 +199,14 @@ def run_experiment(results_dir, simple_model=True):
                                     log_config={'metrics_after_convergence': True})
 
     standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="stmc", params="stmc",
-                                      early_stopping=False, logging_monitor=hmm_monitor)
+                                      early_stopping=True, logging_monitor=hmm_monitor)
 
     start = time.perf_counter()
     standardhmm.fit(Y_true, lengths)
     time_tmp = time.perf_counter() - start
 
     preds_perm, perm = predict_permute(standardhmm, data, X_true)
-    result['standard_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
+    result['standard_gaussian_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
                                                 standardhmm, time_tmp, perm, preds_perm)
 
     # GaussianDenseHMM - custom implementation with coocurrences-based fit
