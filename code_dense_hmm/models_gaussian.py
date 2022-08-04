@@ -103,10 +103,13 @@ class HMMLoggingMonitor(ConvergenceMonitor):
     def emname(self, em_iter, ident):
         return "logs_em=%d_ident=%s" % (int(em_iter), ident)
 
-    def report(self, log_prob, preds=None, transmat=None, startprob=None, means=None, covars=None):
+    def report(self, log_prob, preds=None, transmat=None, startprob=None, means=None, covars=None, omega_gt=None, learned_omega=None):
         super(HMMLoggingMonitor, self).report(log_prob)
         if self.wandb_log:
             # provide metrics
+            omega_diff = None
+            if (learned_omega is not None) & (omega_gt is not None):
+                omega_diff = dtv(learned_omega, omega_gt)
             if (self.true_states is None) | (preds is None):
                 wandb.log({
                     "total_log_prob": log_prob,
@@ -115,7 +118,8 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                     "transmat_dtv": None,
                     "startprob_dtv": None,
                     "means_mae": None,
-                    "covars_mae": None
+                    "covars_mae": None,
+                    "omage_dtv": omega_diff
                 })
             else:
                 perm = find_permutation(preds, self.true_states)
@@ -133,7 +137,8 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 "transmat_dtv": transmat_dtv,
                 "startprob_dtv": startprob_dtv,
                 "means_mae": means_mae,
-                "covars_mae": covars_mae
+                "covars_mae": covars_mae,
+                "omage_dtv": omega_diff
             })
 
 
@@ -790,7 +795,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # omega[i, j] = P(O_{t} = o_i, O_{t+1} = o_j)
             # omega[i, j] = sum_{kl} B[k, i] theta[k, l] B[l, j] = sum_{kl} p(o_i | s_k) p(s_k, s_l) p(o_j | s_l)
             omega = tf.matmul(tf.transpose(B_scalars), tf.matmul(theta, B_scalars))
-            loss_cooc = tf.reduce_sum(tf.square(omega_gt - omega))
+            loss_cooc = tf.reduce_sum(tf.square(tf.log(omega_gt) - tf.log(omega)))
 
             loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
             return loss_cooc, loss_cooc_update, A_stationary, omega
@@ -1146,7 +1151,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 self.startprob_ = A_stat
                 self.logging_monitor.report(self._forward_backward_gamma_pass(X, lengths)[1],
                                             preds=self.predict(X, lengths),
-                                            transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c))
+                                            transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
+                                            omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict))
                 # print(cur_loss)
 
         log_dict = {}
