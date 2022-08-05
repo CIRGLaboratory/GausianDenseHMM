@@ -26,7 +26,7 @@ data_sizes = [(1, 12800, 20)]  # (s, T, n)
 
 ls = (2, 3, 4,  5)
 ms = (4, 8, 12, 64, 128)
-ms = (100)
+ms = [100]
 
 mstep_cofigs_em = [{"em_lr": 0.0001, "em_epochs": 10},
                    {"em_lr": 0.0001, "em_epochs": 25},
