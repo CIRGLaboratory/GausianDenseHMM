@@ -228,7 +228,7 @@ def run_experiment(results_dir, simple_model=True):
             densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, 'loss_type': 'abs_log'},
                                         covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
                                         init_params="stmc", params="stmc", early_stopping=False, opt_schemes={"cooc"},
-                                        discrete_observables=m, scheduler=True)
+                                        discrete_observables=m)
 
             start = time.perf_counter()
             densehmm.fit_coocs(Y_true, lengths)
@@ -249,7 +249,7 @@ def run_experiment(results_dir, simple_model=True):
                                      "name": f"dense--l={l}-lr={mstep_cofig['em_lr']}-epochs={mstep_cofig['em_epochs']}"})
         wandb_params["config"].update(dict(model="dense_em", m=0, l=l, lr=mstep_cofig['em_lr'],
                                            em_epochs=mstep_cofig['em_epochs'], em_iter=EM_ITER,
-                                           cooc_epochs=0, epochs=EM_ITER * mstep_cofig['em_epochs']))
+                                           cooc_epochs=0, epochs=EM_ITER * mstep_cofig['em_epochs']), scheduler=True)
 
         wandb.init(**wandb_params["init"], config=wandb_params["config"])
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
