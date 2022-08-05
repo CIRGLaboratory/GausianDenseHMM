@@ -690,11 +690,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.session, self.session_loss = None, None
         self.u, self.v, self.w, self.z, self.z0 = None, None, None, None, None  # Representations
         self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn = None, None  # HMM parameters
+        self.scheduler = dict_get(mstep_config, 'scheduler', default=lambda lr, iter: lr)
 
         # Only needed for EM optimization
         self.em_epochs = dict_get(mstep_config, 'em_epochs', default=10)
         self.em_lr = dict_get(mstep_config, 'em_lr', default=0.01)
-        self.em_scheduler = dict_get(mstep_config, 'em_scheduler', default=lambda lr, iter:  lr)
         self.em_optimizer = dict_get(mstep_config, 'em_optimizer',
                                      default=None)
         self.scaling = dict_get(mstep_config, 'scaling', default=n_hidden_states)
@@ -707,7 +707,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.loss_type = dict_get(mstep_config, 'loss_type', default='abs_log')
         self.cooc_lr = dict_get(mstep_config, 'cooc_lr', default=0.001)
         self.cooc_optimizer = dict_get(mstep_config, 'cooc_optimizer',
-                                       default=tf.compat.v1.train.GradientDescentOptimizer(self.cooc_lr))
+                                       default=None)
         self.cooc_epochs = dict_get(mstep_config, 'cooc_epochs', default=10)
         self.loss_cooc, self.loss_cooc_update = None, None
         self.A_stationary = None
@@ -783,9 +783,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 loss_cooc = tf.reduce_sum(tf.square(tf.log(omega_gt) - tf.log(omega)))
             else:
                 loss_cooc = tf.reduce_sum(tf.math.abs(tf.log(omega_gt) - tf.log(omega)))
-
+            lr = tf.placeholder(name="lr", dtype=tf.float64)
+            if self.cooc_optimizer is None:
+                self.cooc_optimizer = tf.compat.v1.train.GradientDescentOptimizer(lr)
             loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
-            return loss_cooc, loss_cooc_update, A_stationary, omega
+            return loss_cooc, loss_cooc_update, A_stationary, omega, lr
 
     def _build_tf_graph(self,  X):
         if self.representations not in self.SUPPORTED_REPRESENTATIONS:
@@ -894,7 +896,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 B_scalars_tmp = tf.concat([np.zeros((1, self.n_components)), B_scalars_tmp, np.ones((1, self.n_components))], axis=0)
                 B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars")
                 self.B_scalars = B_scalars  # TODO: remove
-                self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega = self._build_tf_coocs_graph(
+                self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega, self.lr = self._build_tf_coocs_graph(
                     A_from_reps_hmmlearn, B_scalars, self.omega_gt_ph)
 
             self.init_ = tf.global_variables_initializer()
@@ -1123,6 +1125,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         for epoch in range(self.cooc_epochs):
             A, A_stat = get_ABA_stationary()
             feed_dict[A_stationary_] = A_stat
+            feed_dict[self.lr] = self.scheduler(self.cooc_lr, epoch)
 
             self.session.run(self.loss_cooc_update, feed_dict=feed_dict)
             cur_loss = self.session.run(self.loss_cooc, feed_dict=feed_dict)
