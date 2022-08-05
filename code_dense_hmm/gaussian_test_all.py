@@ -22,9 +22,11 @@ complicated_model = {"mu": 5,
                      "sigma": 2}
 
 data_sizes = [(100, 400, 4)]  # (s, T, n)
+data_sizes = [(1, 12800, 20)]  # (s, T, n)
 
 ls = (2, 3, 4,  5)
 ms = (4, 8, 12, 64, 128)
+ms = (100)
 
 mstep_cofigs_em = [{"em_lr": 0.0001, "em_epochs": 10},
                    {"em_lr": 0.0001, "em_epochs": 25},
@@ -189,25 +191,25 @@ def run_experiment(results_dir, simple_model=True):
         dsize, simple_model)
 
     # GaussianHMM - custom implementation
-    # wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": "standard"})
-    # wandb_params["config"].update(
-    #     dict(model="standard", m=0, l=0, lr=0, em_epochs=0, em_iter=EM_ITER, cooc_epochs=0, epochs=0))
-    # wandb.init(**wandb_params["init"], config=wandb_params["config"])
-    #
-    # hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-    #                                 wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
-    #                                 log_config={'metrics_after_convergence': True})
-    #
-    # standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="stmc", params="stmc",
-    #                                   early_stopping=True, logging_monitor=hmm_monitor)
-    #
-    # start = time.perf_counter()
-    # standardhmm.fit(Y_true, lengths)
-    # time_tmp = time.perf_counter() - start
-    #
-    # preds_perm, perm = predict_permute(standardhmm, data, X_true)
-    # result['standard_gaussian_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
-    #                                             standardhmm, time_tmp, perm, preds_perm)
+    wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": "standard"})
+    wandb_params["config"].update(
+        dict(model="standard", m=0, l=0, lr=0, em_epochs=0, em_iter=EM_ITER, cooc_epochs=0, epochs=0))
+    wandb.init(**wandb_params["init"], config=wandb_params["config"])
+
+    hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
+                                    wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                    log_config={'metrics_after_convergence': True})
+
+    standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="stmc", params="stmc",
+                                      early_stopping=True, logging_monitor=hmm_monitor)
+
+    start = time.perf_counter()
+    standardhmm.fit(Y_true, lengths)
+    time_tmp = time.perf_counter() - start
+
+    preds_perm, perm = predict_permute(standardhmm, data, X_true)
+    result['standard_gaussian_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
+                                                standardhmm, time_tmp, perm, preds_perm)
 
     # GaussianDenseHMM - custom implementation with coocurrences-based fit
     for mstep_cofig, l, m in itertools.product(mstep_cofigs_cooc, ls, ms):
@@ -226,7 +228,7 @@ def run_experiment(results_dir, simple_model=True):
             densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, 'loss_type': 'abs_log'},
                                         covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
                                         init_params="stmc", params="stmc", early_stopping=False, opt_schemes={"cooc"},
-                                        discrete_observables=m)
+                                        discrete_observables=m, scheduler=True)
 
             start = time.perf_counter()
             densehmm.fit_coocs(Y_true, lengths)
@@ -240,34 +242,34 @@ def run_experiment(results_dir, simple_model=True):
                                                           embeddings=densehmm.get_representations())
 
 
-    # # GaussianDenseHMM - custom implementation
-    # for mstep_cofig, l in itertools.product(mstep_cofigs_em, ls):
-    #
-    #     wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
-    #                                  "name": f"dense--l={l}-lr={mstep_cofig['em_lr']}-epochs={mstep_cofig['em_epochs']}"})
-    #     wandb_params["config"].update(dict(model="dense_em", m=0, l=l, lr=mstep_cofig['em_lr'],
-    #                                        em_epochs=mstep_cofig['em_epochs'], em_iter=EM_ITER,
-    #                                        cooc_epochs=0, epochs=EM_ITER * mstep_cofig['em_epochs']))
-    #
-    #     wandb.init(**wandb_params["init"], config=wandb_params["config"])
-    #     hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-    #                                     wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
-    #                                     log_config={'metrics_after_convergence': True})
-    #     for _ in range(3):
-    #         densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, "scheduler": em_scheduler},
-    #                                     covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
-    #                                     init_params="stmc", params="stmc", early_stopping=False)
-    #
-    #         start = time.perf_counter()
-    #         densehmm.fit(Y_true, lengths)
-    #         time_tmp = time.perf_counter() - start
-    #
-    #         preds_perm, perm = predict_permute(densehmm, data, X_true)
-    #
-    #         result['dense_em_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
-    #                                                     densehmm, time_tmp, perm, preds_perm,
-    #                                                     {**mstep_cofig, "l_uz": l},
-    #                                                     embeddings=densehmm.get_representations())
+    # GaussianDenseHMM - custom implementation
+    for mstep_cofig, l in itertools.product(mstep_cofigs_em, ls):
+
+        wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
+                                     "name": f"dense--l={l}-lr={mstep_cofig['em_lr']}-epochs={mstep_cofig['em_epochs']}"})
+        wandb_params["config"].update(dict(model="dense_em", m=0, l=l, lr=mstep_cofig['em_lr'],
+                                           em_epochs=mstep_cofig['em_epochs'], em_iter=EM_ITER,
+                                           cooc_epochs=0, epochs=EM_ITER * mstep_cofig['em_epochs']))
+
+        wandb.init(**wandb_params["init"], config=wandb_params["config"])
+        hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
+                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                        log_config={'metrics_after_convergence': True})
+        for _ in range(3):
+            densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, "scheduler": em_scheduler},
+                                        covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
+                                        init_params="stmc", params="stmc", early_stopping=False)
+
+            start = time.perf_counter()
+            densehmm.fit(Y_true, lengths)
+            time_tmp = time.perf_counter() - start
+
+            preds_perm, perm = predict_permute(densehmm, data, X_true)
+
+            result['dense_em_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
+                                                        densehmm, time_tmp, perm, preds_perm,
+                                                        {**mstep_cofig, "l_uz": l},
+                                                        embeddings=densehmm.get_representations())
 
     with open(f"{results_dir}/s={s}_T={T}_n={n}_simple={simple_model}.json", "w") as f:
         json.dump(result, f, indent=4)

@@ -1139,7 +1139,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 # self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
                 # self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
                 # self.startprob_ = A_stat
-                self.logging_monitor.report(None,
+                self.logging_monitor.report(0,
                                             preds=self.predict(X, lengths),
                                             transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
                                             omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict))
