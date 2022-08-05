@@ -704,6 +704,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.loss_scaled, self.loss_update = None, None  # Loss to optimize
 
         # Only needed for cooc optimization
+        self.loss_type = dict_get(mstep_config, 'loss_type', default='abs_log')
         self.cooc_lr = dict_get(mstep_config, 'cooc_lr', default=0.001)
         self.cooc_optimizer = dict_get(mstep_config, 'cooc_optimizer',
                                        default=tf.compat.v1.train.GradientDescentOptimizer(self.cooc_lr))
@@ -773,29 +774,15 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # B = B_from_reps_hmmlearn  # TODO
             A_stationary = tf.placeholder(name="A_stationary",  dtype=tf.float64,
                                           shape=[self.n_components])  # Assumed to be the eigenvector of A.T
-
-            # dist = tfd.Normal(loc=means_cooc, scale=tf.nn.relu(covars_cooc) + 1e-2,
-            #                   allow_nan_stats=True)  # TODO: adjust for multivariate
-
-
-            # if self.kernel == 'exp' or self.kernel == tf.exp:
-            #     B_from_reps = tf.nn.softmax(B_scalars, axis=0)
-            # else:
-            #     B_scalars_ker = self.kernel(B_scalars)
-            #     B_from_reps = B_scalars_ker / tf.reduce_sum(B_scalars_ker, axis=0)[tf.newaxis, :]
-            #
-            # B = tf.identity(B_from_reps, name='B_from_reps')
-            # self.B_from_reps_hmmlearn = B
-
-            # Process of hidden variables is assumed to be stationary, pi being the stationary distribution
-            # Then we get p(s_t = s_i, s_{t+1} = s_j) = p(s_{t+1} = s_j | s_t = s_i) sum_s p(s_t = s_i | s) p(s)
-            # = A[i, j] pi[i]
             theta = A * A_stationary[:, None]  # theta[i, j] = p(s_t = s_i, s_{t+1} = s_j) = A[i, j] * pi[i]
 
-            # omega[i, j] = P(O_{t} = o_i, O_{t+1} = o_j)
-            # omega[i, j] = sum_{kl} B[k, i] theta[k, l] B[l, j] = sum_{kl} p(o_i | s_k) p(s_k, s_l) p(o_j | s_l)
             omega = tf.matmul(tf.transpose(B_scalars), tf.matmul(theta, B_scalars))
-            loss_cooc = tf.reduce_sum(tf.math.abs(tf.log(omega_gt) - tf.log(omega)))
+            if self.loss_type == "square":
+                loss_cooc = tf.reduce_sum(tf.square(omega_gt - omega))
+            elif self.loss_type == "square_log":
+                loss_cooc = tf.reduce_sum(tf.square(tf.log(omega_gt) - tf.log(omega)))
+            else:
+                loss_cooc = tf.reduce_sum(tf.math.abs(tf.log(omega_gt) - tf.log(omega)))
 
             loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
             return loss_cooc, loss_cooc_update, A_stationary, omega
@@ -1145,11 +1132,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
             if epoch % 1000 == 0:
                 A, A_stat = get_ABA_stationary()
                 means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
-                self.transmat_ = A
-                self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
-                self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
-                self.startprob_ = A_stat
-                self.logging_monitor.report(self._forward_backward_gamma_pass(X, lengths)[1],
+                # self.transmat_ = A
+                # self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+                # self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
+                # self.startprob_ = A_stat
+                self.logging_monitor.report(None,
                                             preds=self.predict(X, lengths),
                                             transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
                                             omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict))
