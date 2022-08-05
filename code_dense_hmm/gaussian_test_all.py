@@ -218,14 +218,14 @@ def run_experiment(results_dir, simple_model=True):
                                      "name": f"dense--l={l}-lr={mstep_cofig['cooc_lr']}-epochs={mstep_cofig['cooc_epochs']}"})
         wandb_params["config"].update(dict(model="dense_cooc_log_abs", m=m, l=l, lr=mstep_cofig['cooc_lr'], em_epochs=0,
                                            em_iter=0, cooc_epochs=mstep_cofig['cooc_epochs'], epochs=mstep_cofig['cooc_epochs'],
-                                           loss_type='abs_log', scheduler=True))
+                                           loss_type='square', scheduler=True))
 
         wandb.init(**wandb_params["init"], config=wandb_params["config"])
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                         wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                         log_config={'metrics_after_convergence': True})
         for _ in range(3):
-            densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, 'loss_type': 'abs_log'},
+            densehmm = GaussianDenseHMM(n, mstep_config={**mstep_cofig, "l_uz": l, 'loss_type': 'square'},
                                         covariance_type='diag', em_iter=EM_ITER, logging_monitor=hmm_monitor,
                                         init_params="stmc", params="stmc", early_stopping=False, opt_schemes={"cooc"},
                                         discrete_observables=m)
