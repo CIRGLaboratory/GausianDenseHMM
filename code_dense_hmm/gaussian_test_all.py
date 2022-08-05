@@ -190,26 +190,26 @@ def run_experiment(results_dir, simple_model=True):
     s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data = init_experiment(
         dsize, simple_model)
 
-    # GaussianHMM - custom implementation
-    wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": "standard"})
-    wandb_params["config"].update(
-        dict(model="standard", m=0, l=0, lr=0, em_epochs=0, em_iter=EM_ITER, cooc_epochs=0, epochs=0))
-    wandb.init(**wandb_params["init"], config=wandb_params["config"])
-
-    hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                    wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
-                                    log_config={'metrics_after_convergence': True})
-
-    standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="stmc", params="stmc",
-                                      early_stopping=True, logging_monitor=hmm_monitor)
-
-    start = time.perf_counter()
-    standardhmm.fit(Y_true, lengths)
-    time_tmp = time.perf_counter() - start
-
-    preds_perm, perm = predict_permute(standardhmm, data, X_true)
-    result['standard_gaussian_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
-                                                standardhmm, time_tmp, perm, preds_perm)
+    # # GaussianHMM - custom implementation
+    # wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}", "name": "standard"})
+    # wandb_params["config"].update(
+    #     dict(model="standard", m=0, l=0, lr=0, em_epochs=0, em_iter=EM_ITER, cooc_epochs=0, epochs=0))
+    # wandb.init(**wandb_params["init"], config=wandb_params["config"])
+    #
+    # hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
+    #                                 wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+    #                                 log_config={'metrics_after_convergence': True})
+    #
+    # standardhmm = StandardGaussianHMM(n, em_iter=EM_ITER, covariance_type='diag', init_params="stmc", params="stmc",
+    #                                   early_stopping=True, logging_monitor=hmm_monitor)
+    #
+    # start = time.perf_counter()
+    # standardhmm.fit(Y_true, lengths)
+    # time_tmp = time.perf_counter() - start
+    #
+    # preds_perm, perm = predict_permute(standardhmm, data, X_true)
+    # result['standard_gaussian_runs'] += provide_log_info(pi, A, mu, sigma, X_true,
+    #                                             standardhmm, time_tmp, perm, preds_perm)
 
     # GaussianDenseHMM - custom implementation with coocurrences-based fit
     for mstep_cofig, l, m in itertools.product(mstep_cofigs_cooc, ls, ms):
