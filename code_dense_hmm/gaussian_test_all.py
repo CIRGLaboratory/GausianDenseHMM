@@ -357,6 +357,6 @@ def run_experiment(dsize, simple_model=True):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
-    pool = mp.Pool(mp.cpu_count()-1)
+    pool = mp.Pool(mp.cpu_count()-10)
     [(pool.apply(run_experiment(dsize, simple_model=True)), pool.apply(run_experiment(dsize, simple_model=False))) for dsize in data_sizes]
     pool.close()
