@@ -239,7 +239,7 @@ def run_experiment(dsize, simple_model=True):
         wandb_params["config"].update(dict(model="dense_cooc_tune", m=0, l=params['l_param'], lr=params['cooc_lr_param'],
                                            em_iter=EM_ITER(n), cooc_epochs=params['cooc_epochs_param'],
                                            epochs=params['cooc_epochs_param']), scheduler=True, simple_model=simple_model)
-
+        wandb.setup()
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                         wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                         log_config={'metrics_after_convergence': True})
@@ -280,6 +280,7 @@ def run_experiment(dsize, simple_model=True):
     wandb_params["config"].update(dict(model="HMMlearn", m=0, l=0, lr=0,
                                        em_iter=EM_ITER(n), cooc_epochs=0,
                                        epochs=0), scheduler=False, simple_model=simple_model)
+    wandb.setup()
     hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                     wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                     log_config={'metrics_after_convergence': True})
@@ -306,6 +307,7 @@ def run_experiment(dsize, simple_model=True):
     wandb_params["config"].update(dict(model="dense_cooc", m=0, l=params['l_param'], lr=params['cooc_lr_param'],
                                        em_iter=EM_ITER(n), cooc_epochs=params['cooc_epochs_param'],
                                        epochs=params['cooc_epochs_param']), scheduler=True, simple_model=simple_model)
+    wandb.setup()
     hmm_monitor = DenseHMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                     wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                     log_config={'metrics_after_convergence': True})
