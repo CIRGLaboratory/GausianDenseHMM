@@ -251,5 +251,5 @@ if __name__ == "__main__":
     Path(results_dir).mkdir(exist_ok=True, parents=True)
 
     run_experiment(results_dir, simple_model=True)
-    # run_experiment(results_dir, simple_model=False)
+    # run_experiment(RESULT_DIR, simple_model=False)
     print("DONE. All computations took:", time.perf_counter() - start, "seconds.")

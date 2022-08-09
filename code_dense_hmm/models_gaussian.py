@@ -27,6 +27,11 @@ class HMMLoggingMonitor(ConvergenceMonitor):
         super(HMMLoggingMonitor, self).__init__(tol, n_iter, verbose)
         self.wandb_log = wandb_log
         self.accuracy = deque()
+        self.omega_dtv = deque()
+        self.z = deque()
+        self.z0 = deque()
+        self.u = deque()
+        self.loss = deque()
         self._init_time = time.perf_counter()
 
         self.true_states = dict_get(true_vals, 'states')  # TODO: provide real values for evaluation
@@ -43,7 +48,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             'metrics_initial': True,  # whether to compute metrics before first estep
             'metrics_after_mstep_every_n_iter': 1,  # frequency of computing metrics after mstep or none
             'metrics_after_estep_every_n_iter': 1,  # frequency of computing metrics after estep or none
-            'metrics_after_convergence': True,  # whether to compute metrics after the training
+            'metrics_after_convergence': False,  # whether to compute metrics after the training
             'gamma_after_estep': False,  # whether to compute gammas (they are very large!)
             'gamma_after_mstep': False,
             'test_gamma_after_estep': False,  # whether to compute test gammas ..
@@ -80,8 +85,8 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             if "config" in wandb_params.keys():
                 self.wandb_params["config"].update(wandb_params["config"])
 
-        # if self.wandb_log:
-        #     wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
+        if self.wandb_log:
+            wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
 
     def _check_log_path(self):
         log_conf = self.log_config
@@ -103,11 +108,22 @@ class HMMLoggingMonitor(ConvergenceMonitor):
     def emname(self, em_iter, ident):
         return "logs_em=%d_ident=%s" % (int(em_iter), ident)
 
-    def report(self, log_prob, preds=None, transmat=None, startprob=None, means=None, covars=None, omega_gt=None, learned_omega=None):
+    def report(self, log_prob, preds=None, transmat=None, startprob=None, means=None, covars=None, omega_gt=None, learned_omega=None, z=None, z0=None, u=None, loss=0):
         super(HMMLoggingMonitor, self).report(log_prob)
+
+        self.z.append(z)
+        self.z0.append(z0)
+        self.u.append(u)
+        self.loss.append(loss)
+
+        omega_diff = None
         if self.wandb_log:
+            acc = None
+            transmat_dtv = None
+            startprob_dtv = None
+            means_mae = None
+            covars_mae = None
             # provide metrics
-            omega_diff = None
             if (learned_omega is not None) & (omega_gt is not None):
                 omega_diff = dtv(learned_omega, omega_gt)
             if (self.true_states is None) | (preds is None):
@@ -127,8 +143,8 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 acc = (self.true_states == np.array([perm[i] for i in preds])).mean() if preds is not None else None
                 transmat_dtv = dtv(transmat, self.true_transmat[perm, :][:, perm]) if (transmat is not None) & (self.true_transmat is not None) else None
                 startprob_dtv = dtv(startprob, self.true_startprob[perm]) if (startprob is not None) & (self.true_startprob is not None) else None
-                means_mae = abs(self.true_means[perm] - means[:, 0]).mean() if (means is not None) & (self.true_means is not None) else None
-                covars_mae = abs(self.true_covars[perm] - covars.reshape(-1)).mean() if (covars is not None) & (self.true_covars is not None) else None
+                means_mae = (abs(self.true_means[perm] - means[:, 0])).mean() if (means is not None) & (self.true_means is not None) else None
+                covars_mae = (abs(self.true_covars[perm] - covars.reshape(-1))).mean() if (covars is not None) & (self.true_covars is not None) else None
 
             wandb.log({
                 "total_log_prob": log_prob,
@@ -140,7 +156,16 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 "covars_mae": covars_mae,
                 "omage_dtv": omega_diff
             })
+            self.accuracy.append(acc)
 
+class DenseHMMLoggingMonitor(HMMLoggingMonitor):
+    @property
+    def converged(self):
+        """Whether the Co-oc algorithm converged."""
+        # XXX we might want to check that ``log_prob`` is non-decreasing.
+        return (self.iter == self.n_iter or
+                (len(self.omega_dtv) >= 2 and
+                 self.omega_dtv[-2] - self.omega_dtv[-1] < self.tol))
 
 class GammaGaussianHMM(GaussianHMM):
     """ Base class for Hidden Markov Model of hmmlearn extended for computing all gamma values and logging """
@@ -652,7 +677,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
                  params="stmc", init_params="stmc", logging_monitor=None,
-                 mstep_config=None, opt_schemes=None, early_stopping=True):
+                 mstep_config=None, opt_schemes=None, early_stopping=True, nodes=None):
 
         super(GaussianDenseHMM, self).__init__(n_hidden_states=n_hidden_states,
                                                n_dims=n_dims,
@@ -674,6 +699,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                                early_stopping=early_stopping)
 
         mstep_config = {} if mstep_config is None else mstep_config
+        self.mstep_config = mstep_config
         self.opt_schemes = self.SUPPORTED_OPT_SCHEMES if opt_schemes is None else set(opt_schemes)
 
         # Used for both optimization schemes
@@ -714,7 +740,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.omega, self.omega_gt_ph = None, None
         self.means_cooc, self.covars_cooc = None, None
         self.discrete_observables = discrete_observables
-        self.discrete_nodes = None
+        self.discrete_nodes = nodes
 
     def _build_tf_em_graph(self, A_log_ker, B_log_ker, pi_log_ker, A_log_ker_normal, pi_log_ker_normal):
         # INFO:  graph chyba zostanie bez zmian, [po porstu trzeba dobrze zdefiniować kernele - DONE]
@@ -730,7 +756,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                                        self.n_components])
             tilde_O_ph = tf.placeholder(name="tilde_O", dtype=tf.float64,
                                         shape=[None, None, self.n_dims])
-            lr = tf.placeholder(name="lr", dtype=tf.float64)
+            lr = tf.placeholder(name="lr_em", dtype=tf.float64)
             means = tf.placeholder(name="means", dtype=tf.float64,
                                    shape=[self.n_components, self.n_dims])
             # if self.covariance_type in ["full", "tied"]:
@@ -767,7 +793,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
             return means, covars, gamma, bar_gamma, bar_gamma_pairwise, tilde_O_ph, lr, loss_update, loss_scaled, loss_1, loss_1_normalization, loss_2, loss_2_normalization, loss_3
 
-    def _build_tf_coocs_graph(self, A_from_reps_hmmlearn, B_scalars, omega_gt):
+    def _build_tf_coocs_graph(self, A_from_reps_hmmlearn, B_scalars, omega_gt,  penalty):
 
         with self.graph.as_default():
             A = A_from_reps_hmmlearn
@@ -783,7 +809,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 loss_cooc = tf.reduce_sum(tf.square(tf.log(omega_gt) - tf.log(omega)))
             else:
                 loss_cooc = tf.reduce_sum(tf.math.abs(tf.log(omega_gt) - tf.log(omega)))
-            lr = tf.placeholder(name="lr", dtype=tf.float64)
+
+            lr = tf.placeholder(name="lr_cooc", dtype=tf.float64)
+
+            loss_cooc += penalty * lr
+
             if self.cooc_optimizer is None:
                 self.cooc_optimizer = tf.compat.v1.train.GradientDescentOptimizer(lr)
             loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
@@ -797,6 +827,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         if len(self.opt_schemes.difference(self.SUPPORTED_OPT_SCHEMES)) > 0:
             raise Exception(
                 "Given unsupported optimization scheme! Supported are: %s" % str(self.SUPPORTED_OPT_SCHEMES))
+
 
         self.graph = tf.Graph()
 
@@ -858,21 +889,21 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 B_scalars = tf.identity(np.array([[[multivariate_normal.pdf(X[j, i], m, c)
                                                     for m, c in zip(self.means_, self._covars_)]
                                                    for i in range(X.shape[1])] for j in range(X.shape[0])]),
-                                        name="B_scalars")
+                                        name="B_scalars_em")
                 if self.kernel == 'exp' or self.kernel == tf.exp:
-                    B_log_ker = tf.identity(B_scalars, name='B_log_ker')
+                    B_log_ker = tf.identity(B_scalars, name='B_log_ker_em')
                 else:
                     B_scalars_ker = B_scalars
-                    B_log_ker = tf.log(B_scalars_ker, name='B_log_ker')
+                    B_log_ker = tf.log(B_scalars_ker, name='B_log_ker_em')
 
-                self.means, self.covars, self.gamma, self.bar_gamma, self.bar_gamma_pairwise, self.tilde_O_ph, self.lr, self.loss_update, self.loss_scaled, self.loss_1, self.loss_1_normalization, self.loss_2, self.loss_2_normalization, self.loss_3 = self._build_tf_em_graph(
+                self.means, self.covars, self.gamma, self.bar_gamma, self.bar_gamma_pairwise, self.tilde_O_ph, self.lr_em_placeholder, self.loss_update, self.loss_scaled, self.loss_1, self.loss_1_normalization, self.loss_2, self.loss_2_normalization, self.loss_3 = self._build_tf_em_graph(
                     A_log_ker, B_log_ker, pi_log_ker, A_log_ker_normal, pi_log_ker_normal)
 
             if 'cooc' in self.opt_schemes:
                 # Additional trainables in fit_cooc
                 means_cooc = tf.get_variable(name="means_cooc", dtype=tf.float64,
                                              shape=[self.n_components, self.n_dims],
-                                             initializer=tf.random_uniform_initializer(X.min(), X.max()),
+                                             initializer= tf.initializers.constant(self.means_),  # tf.random_uniform_initializer(X.min(), X.max())
                                              trainable=('m' in self.trainables))
 
                 covars_cooc = tf.get_variable(name="covars_cooc", dtype=tf.float64,
@@ -885,23 +916,27 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 self.covars_cooc = covars_cooc
 
                 self.omega_gt_ph = tf.placeholder(dtype=tf.float64, shape=[self.discrete_observables, self.discrete_observables])
-                Qs = np.concatenate(
-                    [np.array([-np.infty]), np.quantile(X, [i / self.discrete_observables for i in range(1, self.discrete_observables)]),
-                     np.array([np.infty])])
-                self.discrete_nodes = Qs.astype('float64')
+                if self.discrete_nodes is  None:
+                    Qs = np.concatenate(
+                        [np.array([-np.infty]), np.quantile(X, [i / self.discrete_observables for i in range(1, self.discrete_observables)]),
+                         np.array([np.infty])])
+                    self.discrete_nodes = Qs.astype('float64')
 
                 B_scalars_tmp = .5 * (1 + tf.erf(
                     (self.discrete_nodes[1:-1, np.newaxis] - tf.transpose(means_cooc)) /
                      (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-10) / np.sqrt(2)))
+                self.penalty = tf.identity((tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components, name="penalty")
                 B_scalars_tmp = tf.concat([np.zeros((1, self.n_components)), B_scalars_tmp, np.ones((1, self.n_components))], axis=0)
-                B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars")
-                self.B_scalars = B_scalars  # TODO: remove
-                self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega, self.lr = self._build_tf_coocs_graph(
-                    A_from_reps_hmmlearn, B_scalars, self.omega_gt_ph)
+                B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_cooc")
+                # self.B_scalars_cooc = B_scalars  # TODO: remove
+                self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega, self.lr_cooc_placeholder = self._build_tf_coocs_graph(
+                    A_from_reps_hmmlearn, B_scalars, self.omega_gt_ph, self.penalty)
 
             self.init_ = tf.global_variables_initializer()
 
     def _init_tf(self, X):
+        if self.graph is not None:
+            return None
         self._build_tf_graph(X)
         self.session = tf.Session(graph=self.graph)
         self.session.run(self.init_)
@@ -909,6 +944,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.transmat_ = self.session.run(self.A_from_reps_hmmlearn)
 
     def _init(self, X, lengths=None):
+
         X, n_seqs, max_seqlen = super(GaussianDenseHMM, self)._init(X, lengths=lengths)
 
         # if 'em' in self.opt_schemes:
@@ -933,7 +969,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                 self.tilde_O_ph: self.tilde_O,
                                 self.means: self.means_,
                                 self.covars:  self.covars_,
-                                self.lr:  self.em_scheduler(self.em_lr, it)}
+                                self.lr_em_placeholder:  self.scheduler(self.em_lr, it)}
 
             self.session.run(self.loss_update, feed_dict=train_input_dict)
             # TODO: if verbose
@@ -1100,8 +1136,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.logging_monitor.log('logs_coocs', log_dict)
 
     def _to_discrete(self, X):
-        nodes = self.discrete_nodes[:-1].reshape(tuple([1 for _ in range(len(X.shape))] + [-1]))  # TODO: handle unitialized
-        return (X < nodes).sum(axis=-1).reshape(-1, 1)
+        return (X > self.discrete_nodes.reshape(1, -1)[0, 1:]).sum(axis=-1).reshape(-1, 1)
 
     def _fit_coocs(self, omega_gt, X, lengths, val_lengths=None):  # TODO: fix parameters
 
@@ -1125,7 +1160,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         for epoch in range(self.cooc_epochs):
             A, A_stat = get_ABA_stationary()
             feed_dict[A_stationary_] = A_stat
-            feed_dict[self.lr] = self.scheduler(self.cooc_lr, epoch)
+            feed_dict[self.lr_cooc_placeholder] = np.float64(self.scheduler(self.cooc_lr, epoch))
 
             self.session.run(self.loss_cooc_update, feed_dict=feed_dict)
             cur_loss = self.session.run(self.loss_cooc, feed_dict=feed_dict)
@@ -1135,14 +1170,16 @@ class GaussianDenseHMM(GammaGaussianHMM):
             if epoch % 1000 == 0:
                 A, A_stat = get_ABA_stationary()
                 means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
-                # self.transmat_ = A
-                # self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
-                # self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
-                # self.startprob_ = A_stat
-                self.logging_monitor.report(0,
+                self.transmat_ = A
+                self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+                self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
+                self.startprob_ = A_stat
+                z, z0, u = self.session.run([self.z, self.z0, self.u])
+                self.logging_monitor.report(self.score(X, lengths),
                                             preds=self.predict(X, lengths),
                                             transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
-                                            omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict))
+                                            omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict),
+                                            z=z, z0=z0, u=u, loss=cur_loss)
                 # print(cur_loss)
 
         log_dict = {}
