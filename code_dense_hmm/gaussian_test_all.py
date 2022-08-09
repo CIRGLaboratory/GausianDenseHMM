@@ -157,7 +157,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"fit_coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -350,7 +350,7 @@ def run_experiment(dsize, simple_model=True):
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         pickle.dump(study,  f)
     with open(f"{RESULT_DIR}/best_result_s{s}_T{T}_n{n}_simple_model{simple_model}.json",  "w") as f:
-        json.dump(best_result,  f)
+        json.dump(best_result,  f, indent=4)
 
 
 
