@@ -60,7 +60,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
 
         self.run = None
         if log_config is not None:
-            self.run = self.log_config.update(dict(log_config))
+           self.log_config.update(dict(log_config))
 
 
         # Default wandb parameters
@@ -88,7 +88,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 self.wandb_params["config"].update(wandb_params["config"])
 
         if self.wandb_log:
-            wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
+            self.run = wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
 
     def _check_log_path(self):
         log_conf = self.log_config
