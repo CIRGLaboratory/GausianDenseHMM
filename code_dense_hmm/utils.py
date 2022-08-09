@@ -185,7 +185,6 @@ def pad_to_seqlen(X, seqlen, mode='constant', constant_values=(0), **kwargs):
     return pad_X
 
 def compute_stationary(M, verbose=True):
-    
     eigval, eigvec = np.linalg.eig(M.T)
     idx = np.asarray(np.isclose(eigval, [1.])).nonzero()[0]
     if idx.size < 1:
@@ -252,7 +251,8 @@ def empirical_coocs(seqs, m, lengths=None):
         seq_pre, seq_suc = [arr.flatten() for arr in np.dsplit(seq_pairs, 2)]
         freqs[seq_pre, seq_suc] += counts
 
-    return freqs, np.reshape(freqs / np.sum(freqs), newshape=(-1))
+    # return freqs, np.reshape(freqs / np.sum(freqs), newshape=(-1))
+    return freqs, freqs / np.sum(freqs)
 
 def cooc_loss(x, y):
     return np.mean(np.abs(y-x))
