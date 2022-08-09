@@ -19,6 +19,7 @@ from sklearn.decomposition import PCA
 import multiprocessing as mp
 from celluloid import Camera
 import matplotlib.cm as cm
+import argparse
 
 np.random.seed(2022)
 
@@ -241,14 +242,14 @@ def run_experiment(dsize, simple_model=True):
                                            epochs=params['cooc_epochs_param']), scheduler=True, simple_model=simple_model)
 
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                        wandb_log=False, wandb_params=wandb_params, true_vals=true_values,
+                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                         log_config={'metrics_after_convergence': True})
         densehmm = GaussianDenseHMM(n, mstep_config={'cooc_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
                                                      'cooc_epochs': cooc_epochs_param, 'loss_type': 'square'},
                                     covariance_type='diag', em_iter=EM_ITER(n), logging_monitor=hmm_monitor,
                                     init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"},
                                     discrete_observables=m)
-        
+
         densehmm.means_ = mu
         densehmm.fit_coocs(Y_true, lengths)
         return hmm_monitor.loss[-1]
@@ -372,6 +373,15 @@ def run_false(dsize):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     wandb.require("service")
-    with mp.Pool(mp.cpu_count() - 10) as pool:
-        pool.map(run_true, data_sizes)
-        pool.map(run_false, data_sizes)
+
+    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser.add_argument('dsize', metavar='N', type=int, nargs=3,
+                        help='s, T, n')
+    dsize = parser.parse_args().dsize
+
+    run_experiment(dsize, simple_model=True)
+    run_experiment(dsize, simple_model=False)
+
+    # with mp.Pool(1) as pool:
+    #     pool.map(run_true, data_sizes)
+    #     pool.map(run_false, data_sizes)
