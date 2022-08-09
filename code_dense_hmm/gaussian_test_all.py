@@ -218,7 +218,7 @@ def draw_embeddings(z, run, name="?"):
 N_TRIALS = 64
 
 def run_experiment(dsize, simple_model=True):
-    wandb.setup()
+    # wandb.setup()
     # setup
     best_result = {}
     s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, _, em_scheduler, run = init_experiment(dsize,
@@ -248,6 +248,7 @@ def run_experiment(dsize, simple_model=True):
                                     covariance_type='diag', em_iter=EM_ITER(n), logging_monitor=hmm_monitor,
                                     init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"},
                                     discrete_observables=m)
+        hmm_monitor.run.finish()
         densehmm.means_ = mu
         densehmm.fit_coocs(Y_true, lengths)
         return hmm_monitor.loss[-1]
@@ -290,6 +291,7 @@ def run_experiment(dsize, simple_model=True):
 
     preds = hmm_model.predict(Y_true, lengths)
     perm  = find_permutation(preds, X_true)
+    hmm_monitor.run.finish()
 
     best_result["HMMlearn"] = {
         "time": time.perf_counter() - hmm_monitor._init_time,
@@ -307,7 +309,7 @@ def run_experiment(dsize, simple_model=True):
     wandb_params["config"].update(dict(model="dense_cooc", m=0, l=params['l_param'], lr=params['cooc_lr_param'],
                                        em_iter=EM_ITER(n), cooc_epochs=params['cooc_epochs_param'],
                                        epochs=params['cooc_epochs_param']), scheduler=True, simple_model=simple_model)
-    
+
     hmm_monitor = DenseHMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                     wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                     log_config={'metrics_after_convergence': True})
@@ -328,7 +330,7 @@ def run_experiment(dsize, simple_model=True):
 
     preds = densehmm.predict(Y_true, lengths)
     perm = find_permutation(preds, X_true)
-
+    hmm_monitor.run.finish()
     best_result["DenseCooc"] = {
         "time": time.perf_counter() - hmm_monitor._init_time,
         "logprob": densehmm.score(Y_true, lengths),
@@ -350,6 +352,8 @@ def run_experiment(dsize, simple_model=True):
     draw_embeddings(z, run, "z")
     draw_embeddings(z0, run, "z0")
     draw_embeddings(u, run, "u")
+
+    run.finish()
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         joblib.dump(study,  f)
