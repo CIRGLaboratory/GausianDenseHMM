@@ -248,7 +248,7 @@ def run_experiment(dsize, simple_model=True):
                                     covariance_type='diag', em_iter=EM_ITER(n), logging_monitor=hmm_monitor,
                                     init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"},
                                     discrete_observables=m)
-        hmm_monitor.run.finish()
+        
         densehmm.means_ = mu
         densehmm.fit_coocs(Y_true, lengths)
         return hmm_monitor.loss[-1]
