@@ -6,6 +6,7 @@ import time
 from tqdm import tqdm
 from ssm.util import find_permutation
 import pickle
+import joblib
 import json
 from pathlib import Path
 import wandb
@@ -157,7 +158,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"fit_coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"fit-coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -197,7 +198,7 @@ def init_experiment(dsize, simple_model):
 
 
 def draw_embeddings(z, name="?"):
-    fig = plt.figure(figsize=(5,5))
+    fig = plt.figure(figsize=(5, 5))
     camera = Camera(fig)
     cmap = cm.rainbow(np.linspace(0, 1, len(z[0])))
     for z_el in z:
@@ -217,6 +218,7 @@ def draw_embeddings(z, name="?"):
 N_TRIALS = 64
 
 def run_experiment(dsize, simple_model=True):
+    wandb.setup()
     # setup
     best_result = {}
     s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, _, em_scheduler = init_experiment(dsize,
@@ -348,15 +350,22 @@ def run_experiment(dsize, simple_model=True):
     draw_embeddings(u, "u")
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
-        pickle.dump(study,  f)
+        joblib.dump(study,  f)
     with open(f"{RESULT_DIR}/best_result_s{s}_T{T}_n{n}_simple_model{simple_model}.json",  "w") as f:
         json.dump(best_result,  f, indent=4)
 
+    return 0
 
+
+def run_true(dsize):
+    return run_experiment(dsize, simple_model=True)
+
+def run_false(dsize):
+    return run_experiment(dsize, simple_model=False)
 
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
-
-    pool = mp.Pool(mp.cpu_count()-10)
-    [(pool.apply(run_experiment(dsize, simple_model=True)), pool.apply(run_experiment(dsize, simple_model=False))) for dsize in data_sizes]
-    pool.close()
+    wandb.require("service")
+    with mp.Pool(mp.cpu_count() - 10) as pool:
+        pool.map(run_true, data_sizes)
+        pool.map(run_false, data_sizes)
