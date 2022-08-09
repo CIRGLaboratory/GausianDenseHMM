@@ -180,24 +180,24 @@ def init_experiment(dsize, simple_model):
         }
     }
 
-    wandb.init(**wandb_params["init"], config=wandb_params["config"])
+    run = wandb.init(**wandb_params["init"], config=wandb_params["config"])
 
     x = np.linspace(min(mu) - 3 * max(sigma), max(mu) + 3 * max(sigma), 10000)
     for i in range(n):
         plt.plot(x, stats.norm.pdf(x, mu[i], sigma[i]), label=str(i))
     plt.title(f"Normal PDFs n={n}-s={s}-T={T}-simple={simple_model}")
-    wandb.log({"Normal densities": wandb.Image(plt)})
+    run.log({"Normal densities": wandb.Image(plt)})
     plt.close()
 
     plt.plot([em_scheduler(1, it) for it in range(EM_ITER_tmp)])
     plt.title("Learning rate schedule")
-    wandb.log({"LR schedule": wandb.Image(plt)})
+    run.log({"LR schedule": wandb.Image(plt)})
     plt.close()
 
-    return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data, em_scheduler
+    return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data, em_scheduler, run
 
 
-def draw_embeddings(z, name="?"):
+def draw_embeddings(z, name="?", run):
     fig = plt.figure(figsize=(5, 5))
     camera = Camera(fig)
     cmap = cm.rainbow(np.linspace(0, 1, len(z[0])))
@@ -209,7 +209,7 @@ def draw_embeddings(z, name="?"):
         camera.snap()
     plt.title(f"Embaddings trajectory:  {name}")
     animation = camera.animate()
-    wandb.log({f"Embaddings trajectory:  {name}": wandb.Html(animation.to_html5_video())})
+    run.log({f"Embaddings trajectory:  {name}": wandb.Html(animation.to_html5_video())})
     plt.close()
 
 
@@ -221,7 +221,7 @@ def run_experiment(dsize, simple_model=True):
     wandb.setup()
     # setup
     best_result = {}
-    s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, _, em_scheduler = init_experiment(dsize,
+    s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, _, em_scheduler, run = init_experiment(dsize,
                                                                                                           simple_model)
     # optimize hiperparams for  Dense Coocurences
     nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
@@ -345,9 +345,9 @@ def run_experiment(dsize, simple_model=True):
     pca_u = PCA(n_components=2).fit(np.transpose(hmm_monitor.u[-1]))
     u = [pca_u.transform(np.transpose(x)) for x in hmm_monitor.u]
 
-    draw_embeddings(z, "z")
-    draw_embeddings(z0, "z0")
-    draw_embeddings(u, "u")
+    draw_embeddings(z, "z", run)
+    draw_embeddings(z0, "z0", run)
+    draw_embeddings(u, "u", run)
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         joblib.dump(study,  f)

@@ -58,8 +58,10 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             'samples_after_cooc_opt': None  # (n_seqs, seqlen) sample to draw after fitting model's coocs
         }
 
+        self.run = None
         if log_config is not None:
-            self.log_config.update(dict(log_config))
+            self.run = self.log_config.update(dict(log_config))
+
 
         # Default wandb parameters
         t = time.localtime()
@@ -127,7 +129,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             if (learned_omega is not None) & (omega_gt is not None):
                 omega_diff = dtv(learned_omega, omega_gt)
             if (self.true_states is None) | (preds is None):
-                wandb.log({
+                self.run.log({
                     "total_log_prob": log_prob,
                     "accuracy": None,
                     "time": time.perf_counter() - self._init_time,
@@ -146,7 +148,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 means_mae = (abs(self.true_means[perm] - means[:, 0])).mean() if (means is not None) & (self.true_means is not None) else None
                 covars_mae = (abs(self.true_covars[perm] - covars.reshape(-1))).mean() if (covars is not None) & (self.true_covars is not None) else None
 
-            wandb.log({
+            self.run.log({
                 "total_log_prob": log_prob,
                 "accuracy": acc,
                 "time": time.perf_counter() - self._init_time,
