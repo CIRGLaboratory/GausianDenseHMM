@@ -197,7 +197,7 @@ def init_experiment(dsize, simple_model):
     return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data, em_scheduler, run
 
 
-def draw_embeddings(z, name="?", run):
+def draw_embeddings(z, run, name="?"):
     fig = plt.figure(figsize=(5, 5))
     camera = Camera(fig)
     cmap = cm.rainbow(np.linspace(0, 1, len(z[0])))
@@ -345,9 +345,9 @@ def run_experiment(dsize, simple_model=True):
     pca_u = PCA(n_components=2).fit(np.transpose(hmm_monitor.u[-1]))
     u = [pca_u.transform(np.transpose(x)) for x in hmm_monitor.u]
 
-    draw_embeddings(z, "z", run)
-    draw_embeddings(z0, "z0", run)
-    draw_embeddings(u, "u", run)
+    draw_embeddings(z, run, "z")
+    draw_embeddings(z0, run, "z0")
+    draw_embeddings(u, run, "u")
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         joblib.dump(study,  f)
