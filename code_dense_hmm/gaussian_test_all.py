@@ -159,7 +159,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"fit-coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"fit-coocs-benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
