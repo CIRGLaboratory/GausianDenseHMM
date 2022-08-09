@@ -87,9 +87,9 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             if "config" in wandb_params.keys():
                 self.wandb_params["config"].update(wandb_params["config"])
 
-        if wandb_init:
+        if wandb_init & wandb_log:
             self.run = wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
-        else:
+        elif wandb_log:
             self.run = run
 
     def _check_log_path(self):
@@ -391,9 +391,6 @@ class GammaGaussianHMM(GaussianHMM):
         Returns:
 
         """
-
-        # TODO: change emmision
-
         params = self.params if params is None else params
 
         if stats is None:
