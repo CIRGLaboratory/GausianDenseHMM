@@ -374,14 +374,16 @@ if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     wandb.require("service")
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('dsize', metavar='N', type=int, nargs=3,
-                        help='s, T, n')
-    dsize = parser.parse_args().dsize
-
-    run_experiment(dsize, simple_model=True)
-    run_experiment(dsize, simple_model=False)
+    # parser = argparse.ArgumentParser(description='Process some integers.')
+    # parser.add_argument('dsize', metavar='N', type=int, nargs=3,
+    #                     help='s, T, n')
+    # dsize = parser.parse_args().dsize
+    #
+    # run_experiment(dsize, simple_model=True)
+    # run_experiment(dsize, simple_model=False)
 
     # with mp.Pool(1) as pool:
     #     pool.map(run_true, data_sizes)
     #     pool.map(run_false, data_sizes)
+
+    [(run_experiment(dsize, simple_model=True), run_experiment(dsize, simple_model=False)) for dsize in data_sizes]
