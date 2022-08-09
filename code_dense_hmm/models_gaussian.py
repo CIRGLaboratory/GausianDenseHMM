@@ -22,7 +22,7 @@ import wandb
 
 class HMMLoggingMonitor(ConvergenceMonitor):
 
-    def __init__(self, tol, n_iter, verbose, log_config=None, wandb_log=False, wandb_params=None, true_vals=None):
+    def __init__(self, tol, n_iter, verbose, log_config=None, wandb_log=False, wandb_params=None, true_vals=None, wandb_init=True, run=None):
 
         super(HMMLoggingMonitor, self).__init__(tol, n_iter, verbose)
         self.wandb_log = wandb_log
@@ -87,8 +87,10 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             if "config" in wandb_params.keys():
                 self.wandb_params["config"].update(wandb_params["config"])
 
-        if self.wandb_log:
+        if wandb_init:
             self.run = wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"])
+        else:
+            self.run = run
 
     def _check_log_path(self):
         log_conf = self.log_config
