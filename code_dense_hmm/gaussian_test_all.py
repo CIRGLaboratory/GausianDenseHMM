@@ -214,7 +214,7 @@ def draw_embeddings(z, name="?"):
 
 ##### OPTUNA
 
-N_TRIALS = 1
+N_TRIALS = 64
 
 def run_experiment(dsize, simple_model=True):
     # setup
