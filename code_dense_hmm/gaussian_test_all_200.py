@@ -295,7 +295,6 @@ def run_experiment(dsize, simple_model=True):
 
     preds = hmm_model.predict(Y_true, lengths)
     perm  = find_permutation(preds, X_true)
-    hmm_monitor.run.finish()
 
     best_result["HMMlearn"] = {
         "time": time.perf_counter() - hmm_monitor._init_time,
@@ -334,7 +333,7 @@ def run_experiment(dsize, simple_model=True):
 
     preds = densehmm.predict(Y_true, lengths)
     perm = find_permutation(preds, X_true)
-    hmm_monitor.run.finish()
+
     best_result["DenseCooc"] = {
         "time": time.perf_counter() - hmm_monitor._init_time,
         "logprob": densehmm.score(Y_true, lengths),
@@ -356,8 +355,6 @@ def run_experiment(dsize, simple_model=True):
     draw_embeddings(z, run, "z")
     draw_embeddings(z0, run, "z0")
     draw_embeddings(u, run, "u")
-
-    run.finish()
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         joblib.dump(study,  f)
