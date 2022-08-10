@@ -927,7 +927,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                     (self.discrete_nodes[1:-1, np.newaxis] - tf.transpose(means_cooc)) /
                      (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-10) / np.sqrt(2)))
                 # self.penalty = tf.identity((tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components, name="penalty")
-                self.penalty = tf.identity(0, name="penalty")
+                self.penalty = tf.identity(np.float64(0), name="penalty")
                 B_scalars_tmp = tf.concat([np.zeros((1, self.n_components)), B_scalars_tmp, np.ones((1, self.n_components))], axis=0)
                 B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_cooc")
                 # self.B_scalars_cooc = B_scalars  # TODO: remove
