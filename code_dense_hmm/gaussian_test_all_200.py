@@ -219,7 +219,7 @@ def draw_embeddings(z, run, name="?"):
 
 ##### OPTUNA
 
-N_TRIALS = 64
+N_TRIALS = 4  # TODO
 
 def run_experiment(dsize, simple_model=True):
     # wandb.setup()
