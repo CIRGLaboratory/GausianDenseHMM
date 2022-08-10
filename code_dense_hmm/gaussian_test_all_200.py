@@ -234,7 +234,7 @@ def run_experiment(dsize, simple_model=True):
     m = nodes.shape[0] - 1
 
     def objective(trial):
-        l_param = trial.suggest_int('l_param', 2, n)
+        l_param = trial.suggest_int('l_param', n // 4, n // 2)
         cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .5)
         cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 10000, 100000)
         params = trial.params
@@ -344,17 +344,17 @@ def run_experiment(dsize, simple_model=True):
         "MAE_sigma": (abs(sigma.reshape(-1)[perm] - densehmm.covars_.reshape(-1))).mean()
     }
 
-    pca_z = PCA(n_components=2).fit(hmm_monitor.z[-1])
-    z = [pca_z.transform(x) for x in hmm_monitor.z]
-
-    z0 = hmm_monitor.z0
-
-    pca_u = PCA(n_components=2).fit(np.transpose(hmm_monitor.u[-1]))
-    u = [pca_u.transform(np.transpose(x)) for x in hmm_monitor.u]
-
-    draw_embeddings(z, run, "z")
-    draw_embeddings(z0, run, "z0")
-    draw_embeddings(u, run, "u")
+    # pca_z = PCA(n_components=2).fit(hmm_monitor.z[-1])
+    # z = [pca_z.transform(x) for x in hmm_monitor.z]
+    #
+    # z0 = hmm_monitor.z0
+    #
+    # pca_u = PCA(n_components=2).fit(np.transpose(hmm_monitor.u[-1]))
+    # u = [pca_u.transform(np.transpose(x)) for x in hmm_monitor.u]
+    #
+    # draw_embeddings(z, run, "z")
+    # draw_embeddings(z0, run, "z0")
+    # draw_embeddings(u, run, "u")
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         joblib.dump(study,  f)
@@ -382,7 +382,7 @@ if __name__ == "__main__":
     # run_experiment(dsize, simple_model=True)
     # run_experiment(dsize, simple_model=False)
 
-    with mp.Pool(mp.cpu_count() - 10) as pool:
+    with mp.Pool(mp.cpu_count() - 2) as pool:
         pool.map(run_true, data_sizes)
         pool.map(run_false, data_sizes)
 

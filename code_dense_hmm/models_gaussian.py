@@ -909,7 +909,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
                 covars_cooc = tf.get_variable(name="covars_cooc", dtype=tf.float64,
                                               shape=[self.n_components, self.n_dims],  # TODO: adjust for multivariate
-                                              initializer=tf.random_uniform_initializer(X.std() / 100,  X.std()),
+                                              initializer=tf.random_uniform_initializer(1e-2,  X.std() / self.n_components),
                                               # constraint=tf.keras.constraints.NonNeg(),
                                               trainable=('c' in self.trainables))  # .add_weight(constraint=tf.keras.constraints.NonNeg())
 
@@ -926,7 +926,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 B_scalars_tmp = .5 * (1 + tf.erf(
                     (self.discrete_nodes[1:-1, np.newaxis] - tf.transpose(means_cooc)) /
                      (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-10) / np.sqrt(2)))
-                self.penalty = tf.identity((tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components, name="penalty")
+                # self.penalty = tf.identity((tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components, name="penalty")
+                self.penalty = tf.identity(0, name="penalty")
                 B_scalars_tmp = tf.concat([np.zeros((1, self.n_components)), B_scalars_tmp, np.ones((1, self.n_components))], axis=0)
                 B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_cooc")
                 # self.B_scalars_cooc = B_scalars  # TODO: remove
