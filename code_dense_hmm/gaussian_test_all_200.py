@@ -30,7 +30,7 @@ complicated_model = {"mu": 5,
                      "sigma": 2}
 
 t = time.localtime()
-RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs-fix-covars-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
     (100, 40, 4),
