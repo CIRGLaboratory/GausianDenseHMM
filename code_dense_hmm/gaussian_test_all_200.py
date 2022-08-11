@@ -30,7 +30,7 @@ complicated_model = {"mu": 5,
                      "sigma": 2}
 
 t = time.localtime()
-RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs-fix-covars-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs_ll-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
     (100, 40, 4),
@@ -162,7 +162,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"fit-coocs-fix-covars-benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"fit-coocs-ll-benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -255,7 +255,7 @@ def run_experiment(dsize, simple_model=True):
 
         densehmm.means_ = mu
         densehmm.fit_coocs(Y_true, lengths)
-        return hmm_monitor.loss[-1]
+        return densehmm.score(Y_true, lengths)
 
     def callback(study, trial):
         if trial.value < 0.001:
