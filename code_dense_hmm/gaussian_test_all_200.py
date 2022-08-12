@@ -33,12 +33,12 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs_ll-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (100, 40, 4),
-    (100, 400, 4),
-    (100, 4000, 4),
-    (100, 40, 8),
-    (100, 400, 8),
-    (100, 4000, 8),
+    # (100, 40, 4),
+    # (100, 400, 4),
+    # (100, 4000, 4),
+    # (100, 40, 8),
+    # (100, 400, 8),
+    # (100, 4000, 8),
     (100, 40, 12),
     (100, 400, 12),
     (100, 4000, 12),
@@ -257,12 +257,12 @@ def run_experiment(dsize, simple_model=True):
         densehmm.fit_coocs(Y_true, lengths)
         return densehmm.score(Y_true, lengths)
 
-    def callback(study, trial):
-        if trial.value < 0.001:
-            raise study.stop()
+    # def callback(study, trial):
+    #     if trial.value < 0.001:
+    #         raise study.stop()
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=N_TRIALS, callbacks=[callback])
+    study.optimize(objective, n_trials=N_TRIALS) # , callbacks=[callback]
     params = study.best_params
 
     # provide data for main part  of the experiment
@@ -382,7 +382,8 @@ if __name__ == "__main__":
     # run_experiment(dsize, simple_model=True)
     # run_experiment(dsize, simple_model=False)
 
-    with mp.Pool(mp.cpu_count() - 2) as pool:
+    # with mp.Pool(mp.cpu_count() - 2) as pool:
+    with mp.Pool(1) as pool:
         pool.map(run_true, data_sizes)
         pool.map(run_false, data_sizes)
 
