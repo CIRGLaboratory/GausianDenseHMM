@@ -1166,7 +1166,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # TODO: As Tf v1 does not support eigenvector computation for
             # non-symmetric matrices, need to do this with numpy and feed
             # the result into the graph
-            A = A * (A >= 0)  # relu
+            A = np.nan_to_num(A * (A >= 0), nan=0)  # relu
             A = A / np.reshape(np.sum(A, axis=1), (self.n_components, 1))
             return A, compute_stationary(A, verbose=False) #.asdtype('float64')
 
