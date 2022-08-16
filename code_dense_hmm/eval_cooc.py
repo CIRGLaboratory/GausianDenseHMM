@@ -161,6 +161,6 @@ def run_false(dsize):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
-    with mp.Pool(2) as pool:  # TODO
+    with mp.Pool(1) as pool:  # TODO
         pool.map(run_true, data_sizes)
         pool.map(run_false, data_sizes)
