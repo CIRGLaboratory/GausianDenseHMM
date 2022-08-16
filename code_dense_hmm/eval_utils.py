@@ -7,7 +7,7 @@ import matplotlib.cm as cm
 from celluloid import Camera
 
 from ssm.util import find_permutation
-from utils import dtv, permute_embeddings, compute_stationary
+from utils import dtv, permute_embeddings, compute_stationary, empirical_coocs
 
 simple_model_params = {"mu": 10, "sigma": 1}
 complicated_model_params = {"mu": 5, "sigma": 2}
@@ -200,3 +200,6 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
     # optimize for log-likelihood and stability of the solution (no ground truth needed)
     return lls.mean(), lls.std()
 
+def empirical_cooc_prob(Xd, m, lengths):
+    freqs, gt_omega_emp = empirical_coocs(Xd, m, lengths=lengths)
+    return np.reshape(gt_omega_emp, newshape=(m, m))

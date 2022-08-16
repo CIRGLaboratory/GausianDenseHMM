@@ -90,7 +90,9 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                 "dtv_transmat": dtv(hmm_model.transmat_, A[perm, :][:, perm]),
                 "dtv_startprob": dtv(hmm_model.startprob_, pi[perm]),
                 "MAE_means": (abs(mu[perm] - hmm_model.means_[:, 0])).mean(),
-                "MAE_sigma": (abs(sigma.reshape(-1)[perm] - hmm_model.covars_.reshape(-1))).mean()
+                "MAE_sigma": (abs(sigma.reshape(-1)[perm] - hmm_model.covars_.reshape(-1))).mean(),
+                "dtv_omega": dtv(empirical_cooc_prob(Y_true, m, lengths),
+                                 empirical_cooc_prob(np.array([perm[i] for i in preds]), m, lengths))
             }
         )
 
@@ -141,7 +143,9 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                     "dtv_transmat": dtv(densehmm.transmat_, A[perm, :][:, perm]),
                     "dtv_startprob": dtv(densehmm.startprob_, pi[perm]),
                     "MAE_means": (abs(mu[perm] - densehmm.means_[:, 0])).mean(),
-                    "MAE_sigma": (abs(sigma.reshape(-1)[perm] - densehmm.covars_.reshape(-1))).mean()
+                    "MAE_sigma": (abs(sigma.reshape(-1)[perm] - densehmm.covars_.reshape(-1))).mean(),
+                    "dtv_omega": dtv(empirical_cooc_prob(Y_true, m, lengths),
+                                     empirical_cooc_prob(np.array([perm[i] for i in preds]), m, lengths))
                 }
             )
 
