@@ -1189,7 +1189,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 A, A_stat = get_ABA_stationary()
                 means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
                 self.transmat_ = A
-                self.means_ = means_c.reshape(-1, 1) if np.isnan(means_c).sum() == 0 else self.means_
+                self.means_ = means_c.reshape(1, -1) if np.isnan(means_c).sum() == 0 else self.means_.reshape(1, -1)
                 self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
                 self.startprob_ = A_stat
                 # z, z0, u = self.session.run([self.z, self.z0, self.u])
@@ -1210,7 +1210,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         learned_omega = self.session.run(self.omega, feed_dict)
         means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
         self.transmat_ = A
-        self.means_ = means_c.reshape(-1, 1) if np.isnan(means_c).sum() == 0 else self.means_
+        self.means_ = means_c.reshape(1, -1) if np.isnan(means_c).sum() == 0 else self.means_.reshape(1, -1)
         self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
         self.startprob_ = A_stat
         self._check()
