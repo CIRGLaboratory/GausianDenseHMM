@@ -8,6 +8,7 @@ import optuna
 from sklearn.cluster import KMeans
 import multiprocessing as mp
 from eval_utils import *
+import tqdm
 
 np.random.seed(2022)
 
@@ -15,7 +16,7 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (100, 100, 8)
+    (1000, 1000, 100)
 ]
 
 
@@ -36,7 +37,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
     ## Tune hyper-parameters
     l = np.ceil(n / 3) if l_fixed else None
     best_params = dict()
-    for name in ["cooc", "dense", "dense_em"]:
+    for name in tqdm.tqdm(["cooc", "dense", "dense_em"],  desc="Hyper-param tuning"):
         study = optuna.create_study(directions=['maximize', 'minimize'])
         study.optimize(
             lambda trial: objective(trial, n, m, models[name], monitors[name], Y_true, lengths, mu, em_scheduler,
@@ -97,7 +98,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
         )
 
     # Custom models
-    for name in ["cooc", "dense", "dense_em"]:
+    for name in tqdm.tqdm(["cooc", "dense", "dense_em"],  desc="Model building"):
         model = models[name]
         monitor = monitors[name]
         alg = algs[name]
@@ -110,7 +111,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                                            epochs=params['cooc_epochs_param']), scheduler=True,
                                       simple_model=simple_model)
 
-        for _ in range(10):
+        for _ in tqdm.tqdm(range(10), desc=f"Training {name}"):
             hmm_monitor = monitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                   wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                   log_config={'metrics_after_convergence': True})

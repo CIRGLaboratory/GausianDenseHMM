@@ -178,14 +178,14 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
     # Check hyper-parameters
     for _ in range(8):
         hmm_monitor = monitor(tol=TOLERANCE, n_iter=0,
-                              verbose=True, wandb_log=False, log_config={'metrics_after_convergence': True})
+                              verbose=False, wandb_log=False, log_config={'metrics_after_convergence': True})
         if alg == "cooc":
             mstep_config = {'cooc_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
                             'cooc_epochs': cooc_epochs_param, 'loss_type': 'square'}
         else:
             mstep_config = {'em_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
                             'em_epochs': cooc_epochs_param // 5000}
-        hmm_model = model(n, mstep_config=mstep_config,
+        hmm_model = model(n, mstep_config=mstep_config, verbose=False,
                           covariance_type='diag', em_iter=em_iter(n), logging_monitor=hmm_monitor,
                           init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"},
                           discrete_observables=m)
