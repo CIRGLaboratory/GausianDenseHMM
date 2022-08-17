@@ -184,7 +184,7 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
                             'cooc_epochs': cooc_epochs_param, 'loss_type': 'square'}
         else:
             mstep_config = {'em_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
-                            'em_epochs': cooc_epochs_param}
+                            'em_epochs': cooc_epochs_param // 5000}
         hmm_model = model(n, mstep_config=mstep_config,
                           covariance_type='diag', em_iter=em_iter(n), logging_monitor=hmm_monitor,
                           init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"},
