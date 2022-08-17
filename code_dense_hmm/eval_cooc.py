@@ -16,7 +16,8 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (1000, 1000, 100)
+    (1000, 10000, 100),
+    (100, 1000, 8)
 ]
 
 
@@ -42,11 +43,12 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
         study.optimize(
             lambda trial: objective(trial, n, m, models[name], monitors[name], Y_true, lengths, mu, em_scheduler,
                                     alg=algs[name], l=l), n_trials=N_TRIALS)
-        best_params[name] = study.best_params
-        if l_fixed:
-            best_params[name]["l_param"] = l
         with open(f"{RESULT_DIR}/optuna_{name}_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.pkl", "wb") as f:
             joblib.dump(study, f)
+        best_params[name] = study.best_trials[0].params
+        if l_fixed:
+            best_params[name]["l_param"] = l
+
 
     ## Evaluate models
 
@@ -115,8 +117,8 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
             hmm_monitor = monitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                   wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                   log_config={'metrics_after_convergence': True})
-            kmeans = KMeans(n_clusters=n, random_state=0).fit(Y_true)
-            nodes_tmp = np.sort(kmeans.cluster_centers_, axis=0)
+            # kmeans = KMeans(n_clusters=n, random_state=0).fit(Y_true)
+            nodes_tmp = mu
             nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
                                     (nodes_tmp[1:] + nodes_tmp[:-1]).reshape(-1) / 2,
                                     np.array([Y_true.max(), np.infty])])
@@ -166,6 +168,6 @@ def run_false(dsize):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
-    with mp.Pool(1) as pool:  # TODO
+    with mp.Pool(8) as pool:
         pool.map(run_true, data_sizes)
         pool.map(run_false, data_sizes)
