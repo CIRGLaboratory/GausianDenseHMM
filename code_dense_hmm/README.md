@@ -26,7 +26,5 @@ Contact Klaudia or Piotr if you need editing rights.
 
 # TODO
 
-- dodaj rzeczy z cymesa
 - zrób kopie wyników
-- linkuj w readme
 - ujednolić testy żeby korzystał z eval_utils

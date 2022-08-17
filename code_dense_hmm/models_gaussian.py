@@ -668,9 +668,6 @@ class StandardGaussianHMM(GammaGaussianHMM):
 
 
 class GaussianDenseHMM(GammaGaussianHMM):
-    """
-    In fact, it's  not a  dense model!!! Just GaussianHMM with co-occurrence based learning.
-    """
     SUPPORTED_REPRESENTATIONS = frozenset({'uzz0-normal', 'uzz0mc'})
     SUPPORTED_OPT_SCHEMES = frozenset(('em', 'cooc'))
 
