@@ -1167,7 +1167,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # non-symmetric matrices, need to do this with numpy and feed
             # the result into the graph
             A = np.nan_to_num(A * (A >= 0), nan=0)  # relu
-            A[A == np.inf] == 1
+            A[A == np.inf] = 1
             A[np.sum(A, axis=1) == 0, :] = 1 / self.n_components
             A = A / np.reshape(np.sum(A, axis=1), (self.n_components, 1))
             return A, compute_stationary(A, verbose=False)
