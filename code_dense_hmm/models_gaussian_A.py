@@ -1168,8 +1168,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # the result into the graph
             A = np.nan_to_num(A * (A >= 0), nan=0)  # relu
             A[A == np.inf] == 1
+            A[np.sum(A, axis=1) == 0, :] = 1 / self.n_components
             A = A / np.reshape(np.sum(A, axis=1), (self.n_components, 1))
-            return A, compute_stationary(A, verbose=False) #.asdtype('float64')
+            return A, compute_stationary(A, verbose=False)
 
         feed_dict = {self.omega_gt_ph: omega_gt, A_stationary_: None}
         losses = []
