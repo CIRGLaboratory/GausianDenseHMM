@@ -42,7 +42,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
         study = optuna.create_study(directions=['maximize', 'minimize'])
         study.optimize(
             lambda trial: objective(trial, n, m, models[name], monitors[name], Y_true, lengths, mu, em_scheduler,
-                                    alg=algs[name], l=l), n_trials=N_TRIALS)
+                                    alg=algs[name], l=int(l)), n_trials=N_TRIALS)
         with open(f"{RESULT_DIR}/optuna_{name}_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.pkl", "wb") as f:
             joblib.dump(study, f)
         best_params[name] = study.best_trials[0].params
@@ -108,7 +108,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
         best_result[name] = list()
         wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
                                      "name": f"name-l={params['l_param']}-lr={params['cooc_lr_param']}-epochs={params['cooc_epochs_param']}"})
-        wandb_params["config"].update(dict(model="dense_cooc", m=0, l=params['l_param'], lr=params['cooc_lr_param'],
+        wandb_params["config"].update(dict(model="dense_cooc", m=0, l=int(params['l_param']), lr=params['cooc_lr_param'],
                                            em_iter=em_iter(n), cooc_epochs=params['cooc_epochs_param'],
                                            epochs=params['cooc_epochs_param']), scheduler=True,
                                       simple_model=simple_model)
@@ -124,7 +124,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                                     np.array([Y_true.max(), np.infty])])
             densehmm = model(n, mstep_config={'cooc_epochs': params['cooc_epochs_param'],
                                               'cooc_lr': params['cooc_lr_param'],
-                                              "l_uz": params['l_param'],
+                                              "l_uz": int(params['l_param']),
                                               'loss_type': 'square',
                                               'scheduler': em_scheduler},
                              covariance_type='diag', logging_monitor=hmm_monitor, nodes=nodes,
@@ -169,5 +169,5 @@ if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
     with mp.Pool(8) as pool:
-        pool.map(run_true, data_sizes)
+        pool.map(run_true, data_sizes[1:])
         pool.map(run_false, data_sizes)

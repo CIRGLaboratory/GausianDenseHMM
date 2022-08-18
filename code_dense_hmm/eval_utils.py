@@ -170,7 +170,7 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
     if l is None:
         l_param = trial.suggest_int('l_param', n // 4, n // 2)
     else:
-        l_param = l
+        l_param = int(l)
     cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .5)
     cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 10000, 100000)
     lls = []
