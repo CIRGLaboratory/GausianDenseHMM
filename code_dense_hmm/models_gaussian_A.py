@@ -17,8 +17,9 @@ from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_
 import time
 import itertools
 import wandb
-# TODO: numba?
 
+
+# Learn gaussian HMM with co-occurrences
 
 class HMMLoggingMonitor(ConvergenceMonitor):
 
@@ -668,8 +669,12 @@ class StandardGaussianHMM(GammaGaussianHMM):
 
 
 class GaussianDenseHMM(GammaGaussianHMM):
+    """
+    In fact, it's  not a  dense model!!! Just GaussianHMM with co-occurrence based learning.
+    """
     SUPPORTED_REPRESENTATIONS = frozenset({'uzz0-normal', 'uzz0mc'})
-    SUPPORTED_OPT_SCHEMES = frozenset(('em', 'cooc'))
+    # SUPPORTED_OPT_SCHEMES = frozenset(('em', 'cooc'))
+    SUPPORTED_OPT_SCHEMES = frozenset({'cooc'})
 
     def __init__(self, n_hidden_states=1, n_dims=None,
                  covariance_type='full', min_covar=0.001,
@@ -817,7 +822,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
             if self.cooc_optimizer is None:
                 self.cooc_optimizer = tf.compat.v1.train.GradientDescentOptimizer(lr)
-            loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
+            loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.A, self.means_cooc, self.covars_cooc])  # , var_list=[self.u, self.z, self.means_cooc, self.covars_cooc]
             return loss_cooc, loss_cooc_update, A_stationary, omega, lr
 
     def _build_tf_graph(self,  X):
@@ -833,56 +838,66 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.graph = tf.Graph()
 
         with self.graph.as_default():
-            # Trainables in both fit methods
-            u = tf.get_variable(name="u", dtype=tf.float64, shape=[self.n_components, self.l_uz],
-                                initializer=self.initializer,
-                                trainable=('u' in self.trainables))
-
-            z = tf.get_variable(name="z", dtype=tf.float64, shape=[self.l_uz, self.n_components],
-                                initializer=self.initializer,
-                                trainable=('z' in self.trainables and
-                                           ('z0' not in self.trainables
-                                            or 'zz0' in self.trainables)))
-            z0 = tf.get_variable(name="z0", dtype=tf.float64, shape=[self.l_uz, 1],
-                                 initializer=self.initializer,
-                                 trainable=('z0' in self.trainables))
-
-            """ Recovering A, B, pi """
-            # Compute scalar products
-            A_scalars = tf.matmul(u, z, name="A_scalars")
-            pi_scalars = tf.matmul(u, z0, name="pi_scalars")
-
-            # Apply kernel
-            if self.kernel == 'exp' or self.kernel == tf.exp:
-
-                A_from_reps = tf.nn.softmax(A_scalars, axis=0)
-                pi_from_reps = tf.nn.softmax(pi_scalars, axis=0)
-
-                A_log_ker_normal = tf.reduce_logsumexp(A_scalars, axis=0)  # L
-                pi_log_ker_normal = tf.reduce_logsumexp(pi_scalars)  # L0
-
-                A_log_ker = tf.identity(A_scalars, name='A_log_ker')
-                pi_log_ker = tf.identity(pi_scalars, name='pi_log_ker')
-
-            else:
-                A_scalars_ker = self.kernel(A_scalars)
-                pi_scalars_ker = self.kernel(pi_scalars)
-
-                A_from_reps = A_scalars_ker / tf.reduce_sum(A_scalars_ker, axis=0)[tf.newaxis, :]
-                pi_from_reps = pi_scalars_ker / tf.reduce_sum(pi_scalars_ker)
-
-                A_log_ker_normal = tf.log(tf.reduce_sum(A_scalars_ker, axis=0))
-                pi_log_ker_normal = tf.log(tf.reduce_sum(pi_scalars_ker))
-
-                A_log_ker = tf.log(A_scalars_ker, name='A_log_ker')
-                pi_log_ker = tf.log(pi_scalars_ker, name='pi_log_ker')
+            # # Trainables in both fit methods
+            # u = tf.get_variable(name="u", dtype=tf.float64, shape=[self.n_components, self.l_uz],
+            #                     initializer=self.initializer,
+            #                     trainable=('u' in self.trainables))
+            #
+            # z = tf.get_variable(name="z", dtype=tf.float64, shape=[self.l_uz, self.n_components],
+            #                     initializer=self.initializer,
+            #                     trainable=('z' in self.trainables and
+            #                                ('z0' not in self.trainables
+            #                                 or 'zz0' in self.trainables)))
+            # z0 = tf.get_variable(name="z0", dtype=tf.float64, shape=[self.l_uz, 1],
+            #                      initializer=self.initializer,
+            #                      trainable=('z0' in self.trainables))
+            #
+            # """ Recovering A, B, pi """
+            # # Compute scalar products
+            # A_scalars = tf.matmul(u, z, name="A_scalars")
+            # pi_scalars = tf.matmul(u, z0, name="pi_scalars")
+            #
+            # # Apply kernel
+            # if self.kernel == 'exp' or self.kernel == tf.exp:
+            #
+            #     A_from_reps = tf.nn.softmax(A_scalars, axis=0)
+            #     pi_from_reps = tf.nn.softmax(pi_scalars, axis=0)
+            #
+            #     A_log_ker_normal = tf.reduce_logsumexp(A_scalars, axis=0)  # L
+            #     pi_log_ker_normal = tf.reduce_logsumexp(pi_scalars)  # L0
+            #
+            #     A_log_ker = tf.identity(A_scalars, name='A_log_ker')
+            #     pi_log_ker = tf.identity(pi_scalars, name='pi_log_ker')
+            #
+            # else:
+            #     A_scalars_ker = self.kernel(A_scalars)
+            #     pi_scalars_ker = self.kernel(pi_scalars)
+            #
+            #     A_from_reps = A_scalars_ker / tf.reduce_sum(A_scalars_ker, axis=0)[tf.newaxis, :]
+            #     pi_from_reps = pi_scalars_ker / tf.reduce_sum(pi_scalars_ker)
+            #
+            #     A_log_ker_normal = tf.log(tf.reduce_sum(A_scalars_ker, axis=0))
+            #     pi_log_ker_normal = tf.log(tf.reduce_sum(pi_scalars_ker))
+            #
+            #     A_log_ker = tf.log(A_scalars_ker, name='A_log_ker')
+            #     pi_log_ker = tf.log(pi_scalars_ker, name='pi_log_ker')
 
             # hmmlearn library uses a different convention for the shapes of the matrices
-            A_from_reps_hmmlearn = tf.transpose(A_from_reps, name='A_from_reps')
-            pi_from_reps_hmmlearn = tf.reshape(pi_from_reps, (-1,), name='pi_from_reps')
+            # A_from_reps_hmmlearn = tf.transpose(A_from_reps, name='A_from_reps')
+            # pi_from_reps_hmmlearn = tf.reshape(pi_from_reps, (-1,), name='pi_from_reps')
+
+            A = tf.get_variable(name="A", dtype=tf.float64, shape=[self.n_components, self.n_components],
+                                initializer=self.initializer,
+                                trainable=True)
+            self.A = A
+            A_from_reps_hmmlearn = tf.identity(tf.nn.relu(A) / tf.reshape(tf.reduce_sum(tf.nn.relu(A), axis=1), (self.n_components, 1)), name="A_from_reps")
+            pi = tf.get_variable(name="pi", dtype=tf.float64, shape=self.n_components,
+                                initializer=self.initializer,
+                                trainable=True)
+            pi_from_reps_hmmlearn = tf.identity(tf.nn.relu(pi) / tf.reduce_sum(tf.nn.relu(pi)), name="pi_from_reps")
 
             # Member variables for convenience
-            self.u, self.z, self.z0 = u, z, z0
+            # self.u, self.z, self.z0 = u, z, z0
             self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn = A_from_reps_hmmlearn, pi_from_reps_hmmlearn
 
             # Build optimization graphs
@@ -958,86 +973,86 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
     """ Learns representations, recovers transition matrices and sets them """
 
-    def _do_mstep(self, stats):
-        it = stats["iter"]
-        if self.session is None:
-            raise Exception("Uninitialized TF Session. You must call _init first")
-
-        for epoch in range(self.em_epochs):
-
-            train_input_dict = {self.gamma: stats['gamma'],
-                                self.bar_gamma: stats['bar_gamma'],
-                                self.bar_gamma_pairwise: stats['bar_gamma_pairwise'],
-                                self.tilde_O_ph: self.tilde_O,
-                                self.means: self.means_,
-                                self.covars:  self.covars_,
-                                self.lr_em_placeholder:  self.scheduler(self.em_lr, it)}
-
-            self.session.run(self.loss_update, feed_dict=train_input_dict)
-            # TODO: if verbose
-            # print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
-
-        A, pi = self.session.run([self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn])
-        self.transmat_ = A
-        self.startprob_ = pi
-
-        # Update means and covars like in GaussianHMM
-
-        means_prior = self.means_prior
-        means_weight = self.means_weight
-
-        # TODO: find a proper reference for estimates for different
-        #       covariance models.
-        # Based on Huang, Acero, Hon, "Spoken Language Processing",
-        # p. 443 - 445
-        denom = stats['post'][:, None]
-        if 'm' in self.params:  # INFO: Update parameters only if new value is defined
-            vals_tmp = ((means_weight * means_prior + stats['obs'])
-                           / (means_weight + denom))
-            if np.isnan(vals_tmp).sum() == 0:
-                self.means_ = vals_tmp
-
-        if 'c' in self.params:
-            covars_prior = self.covars_prior
-            covars_weight = self.covars_weight
-            meandiff = self.means_ - means_prior
-
-            if self.covariance_type in ('spherical', 'diag'):
-                c_n = (means_weight * meandiff ** 2
-                       + stats['obs**2']
-                       - 2 * self.means_ * stats['obs']
-                       + self.means_ ** 2 * denom)
-                c_d = max(covars_weight - 1, 0) + denom
-                vals_tmp = (covars_prior + c_n) / np.maximum(c_d, 1e-5)
-                if np.isnan(vals_tmp).sum() == 0:
-                    self._covars_ = vals_tmp
-                if self.covariance_type == 'spherical':
-                    vals_tmp = np.tile(self._covars_.mean(1)[:, None],
-                                            (1, self._covars_.shape[1]))
-                    if np.isnan(vals_tmp).sum() == 0:
-                        self._covars_ = vals_tmp
-            elif self.covariance_type in ('tied', 'full'):
-                c_n = np.empty((self.n_components, self.n_features,
-                                self.n_features))
-                for c in range(self.n_components):
-                    obsmean = np.outer(stats['obs'][c], self.means_[c])
-                    c_n[c] = (means_weight * np.outer(meandiff[c],
-                                                      meandiff[c])
-                              + stats['obs*obs.T'][c]
-                              - obsmean - obsmean.T
-                              + np.outer(self.means_[c], self.means_[c])
-                              * stats['post'][c])
-                cvweight = max(covars_weight - self.n_features, 0)
-                if self.covariance_type == 'tied':
-                    vals_tmp = ((covars_prior + c_n.sum(axis=0)) /
-                                     (cvweight + stats['post'].sum()))
-                    if np.isnan(vals_tmp).sum() == 0:
-                        self._covars_ = vals_tmp
-                elif self.covariance_type == 'full':
-                    vals_tmp = ((covars_prior + c_n) /
-                                     (cvweight + stats['post'][:, None, None]))
-                    if np.isnan(vals_tmp).sum() == 0:
-                        self._covars_ = vals_tmp
+    # def _do_mstep(self, stats):
+    #     it = stats["iter"]
+    #     if self.session is None:
+    #         raise Exception("Uninitialized TF Session. You must call _init first")
+    #
+    #     for epoch in range(self.em_epochs):
+    #
+    #         train_input_dict = {self.gamma: stats['gamma'],
+    #                             self.bar_gamma: stats['bar_gamma'],
+    #                             self.bar_gamma_pairwise: stats['bar_gamma_pairwise'],
+    #                             self.tilde_O_ph: self.tilde_O,
+    #                             self.means: self.means_,
+    #                             self.covars:  self.covars_,
+    #                             self.lr_em_placeholder:  self.scheduler(self.em_lr, it)}
+    #
+    #         self.session.run(self.loss_update, feed_dict=train_input_dict)
+    #         # TODO: if verbose
+    #         # print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
+    #
+    #     A, pi = self.session.run([self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn])
+    #     self.transmat_ = A
+    #     self.startprob_ = pi
+    #
+    #     # Update means and covars like in GaussianHMM
+    #
+    #     means_prior = self.means_prior
+    #     means_weight = self.means_weight
+    #
+    #     # TODO: find a proper reference for estimates for different
+    #     #       covariance models.
+    #     # Based on Huang, Acero, Hon, "Spoken Language Processing",
+    #     # p. 443 - 445
+    #     denom = stats['post'][:, None]
+    #     if 'm' in self.params:  # INFO: Update parameters only if new value is defined
+    #         vals_tmp = ((means_weight * means_prior + stats['obs'])
+    #                        / (means_weight + denom))
+    #         if np.isnan(vals_tmp).sum() == 0:
+    #             self.means_ = vals_tmp
+    #
+    #     if 'c' in self.params:
+    #         covars_prior = self.covars_prior
+    #         covars_weight = self.covars_weight
+    #         meandiff = self.means_ - means_prior
+    #
+    #         if self.covariance_type in ('spherical', 'diag'):
+    #             c_n = (means_weight * meandiff ** 2
+    #                    + stats['obs**2']
+    #                    - 2 * self.means_ * stats['obs']
+    #                    + self.means_ ** 2 * denom)
+    #             c_d = max(covars_weight - 1, 0) + denom
+    #             vals_tmp = (covars_prior + c_n) / np.maximum(c_d, 1e-5)
+    #             if np.isnan(vals_tmp).sum() == 0:
+    #                 self._covars_ = vals_tmp
+    #             if self.covariance_type == 'spherical':
+    #                 vals_tmp = np.tile(self._covars_.mean(1)[:, None],
+    #                                         (1, self._covars_.shape[1]))
+    #                 if np.isnan(vals_tmp).sum() == 0:
+    #                     self._covars_ = vals_tmp
+    #         elif self.covariance_type in ('tied', 'full'):
+    #             c_n = np.empty((self.n_components, self.n_features,
+    #                             self.n_features))
+    #             for c in range(self.n_components):
+    #                 obsmean = np.outer(stats['obs'][c], self.means_[c])
+    #                 c_n[c] = (means_weight * np.outer(meandiff[c],
+    #                                                   meandiff[c])
+    #                           + stats['obs*obs.T'][c]
+    #                           - obsmean - obsmean.T
+    #                           + np.outer(self.means_[c], self.means_[c])
+    #                           * stats['post'][c])
+    #             cvweight = max(covars_weight - self.n_features, 0)
+    #             if self.covariance_type == 'tied':
+    #                 vals_tmp = ((covars_prior + c_n.sum(axis=0)) /
+    #                                  (cvweight + stats['post'].sum()))
+    #                 if np.isnan(vals_tmp).sum() == 0:
+    #                     self._covars_ = vals_tmp
+    #             elif self.covariance_type == 'full':
+    #                 vals_tmp = ((covars_prior + c_n) /
+    #                                  (cvweight + stats['post'][:, None, None]))
+    #                 if np.isnan(vals_tmp).sum() == 0:
+    #                     self._covars_ = vals_tmp
 
 
     def _compute_metrics(self, X, lengths, stats, em_iter, ident,
@@ -1154,7 +1169,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # TODO: As Tf v1 does not support eigenvector computation for
             # non-symmetric matrices, need to do this with numpy and feed
             # the result into the graph
-            return A, compute_stationary(A, verbose=False) #.asdtype('float64')
+            A = np.nan_to_num(A * (A >= 0), nan=0)  # relu
+            A[A == np.inf] = 1
+            A[np.sum(A, axis=1) == 0, :] = 1 / self.n_components
+            A = A / np.reshape(np.sum(A, axis=1), (self.n_components, 1))
+            return A, compute_stationary(A, verbose=False)
 
         feed_dict = {self.omega_gt_ph: omega_gt, A_stationary_: None}
         losses = []
@@ -1173,16 +1192,18 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 A, A_stat = get_ABA_stationary()
                 means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
                 self.transmat_ = A
-                self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+                self.means_ = means_c.reshape(1, -1) if np.isnan(means_c).sum() == 0 else self.means_.reshape(1, -1)
                 self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
                 self.startprob_ = A_stat
-                z, z0, u = self.session.run([self.z, self.z0, self.u])
+                # z, z0, u = self.session.run([self.z, self.z0, self.u])
+                z, z0, u = None, None, None
                 self.logging_monitor.report(self.score(X, lengths),
                                             preds=self.predict(X, lengths),
                                             transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
                                             omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict),
                                             z=z, z0=z0, u=u, loss=cur_loss)
-                # print(cur_loss)
+                if self.verbose:
+                    print(cur_loss)
 
         log_dict = {}
         log_dict['cooc_losses'] = losses
@@ -1192,7 +1213,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         learned_omega = self.session.run(self.omega, feed_dict)
         means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
         self.transmat_ = A
-        self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+        self.means_ = means_c.reshape(1, -1) if np.isnan(means_c).sum() == 0 else self.means_.reshape(1, -1)
         self._covars_ = np.square(covars_c) if np.isnan(covars_c).sum() == 0 else self._covars_  # TODO: adjust for multivariate
         self.startprob_ = A_stat
         self._check()
@@ -1200,8 +1221,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
         log_dict.update({'cooc_transmat': self.transmat_, 'cooc_means': self.means_, 'cooc_covars': self.covars_,
                          'cooc_startprob': self.startprob_, 'cooc_omega': learned_omega})
 
-        u, z = self.session.run([self.u, self.z])
-        log_dict.update(dict(u=u, z=z, means=means_c, covars=covars_c))
+        # u, z = self.session.run([self.u, self.z])
+        # log_dict.update(dict(u=u, z=z, means=means_c, covars=covars_c))
+        log_dict.update(dict(A=A, means=means_c, covars=covars_c))
 
         if self.logging_monitor.log_config['samples_after_cooc_opt'] is not None:
             sample_sizes = None

@@ -30,15 +30,15 @@ complicated_model = {"mu": 5,
                      "sigma": 2}
 
 t = time.localtime()
-RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'gaussian_dense_hmm_benchmark/fit_coocs_ll-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (100, 40, 4),
-    (100, 400, 4),
-    (100, 4000, 4),
-    (100, 40, 8),
-    (100, 400, 8),
-    (100, 4000, 8),
+    # (100, 40, 4),
+    # (100, 400, 4),
+    # (100, 4000, 4),
+    # (100, 40, 8),
+    # (100, 400, 8),
+    # (100, 4000, 8),
     (100, 40, 12),
     (100, 400, 12),
     (100, 4000, 12),
@@ -53,6 +53,9 @@ data_sizes = [  # (s, T, n)
     (100, 400, 100),
     (100, 4000, 100),
     (100, 40000, 100),
+    (100, 4000, 200),
+    (100, 40000, 200),
+    (100, 400000, 200)
 ]
 
 EM_ITER = lambda n: 10 * n
@@ -159,7 +162,7 @@ def init_experiment(dsize, simple_model):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"fit-coocs-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"fit-coocs-ll-benchmark-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -180,20 +183,20 @@ def init_experiment(dsize, simple_model):
             "scheduler": em_scheduler
         }
     }
-
-    run = wandb.init(**wandb_params["init"], config=wandb_params["config"])
-
-    x = np.linspace(min(mu) - 3 * max(sigma), max(mu) + 3 * max(sigma), 10000)
-    for i in range(n):
-        plt.plot(x, stats.norm.pdf(x, mu[i], sigma[i]), label=str(i))
-    plt.title(f"Normal PDFs n={n}-s={s}-T={T}-simple={simple_model}")
-    run.log({"Normal densities": wandb.Image(plt)})
-    plt.close()
-
-    plt.plot([em_scheduler(1, it) for it in range(EM_ITER_tmp)])
-    plt.title("Learning rate schedule")
-    run.log({"LR schedule": wandb.Image(plt)})
-    plt.close()
+    run=None
+    # run = wandb.init(**wandb_params["init"], config=wandb_params["config"])
+    #
+    # x = np.linspace(min(mu) - 3 * max(sigma), max(mu) + 3 * max(sigma), 10000)
+    # for i in range(n):
+    #     plt.plot(x, stats.norm.pdf(x, mu[i], sigma[i]), label=str(i))
+    # plt.title(f"Normal PDFs n={n}-s={s}-T={T}-simple={simple_model}")
+    # run.log({"Normal densities": wandb.Image(plt)})
+    # plt.close()
+    #
+    # plt.plot([em_scheduler(1, it) for it in range(EM_ITER_tmp)])
+    # plt.title("Learning rate schedule")
+    # run.log({"LR schedule": wandb.Image(plt)})
+    # plt.close()
 
     return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data, em_scheduler, run
 
@@ -210,13 +213,13 @@ def draw_embeddings(z, run, name="?"):
         camera.snap()
     plt.title(f"Embaddings trajectory:  {name}")
     animation = camera.animate()
-    run.log({f"Embaddings trajectory:  {name}": wandb.Html(animation.to_html5_video())})
+    # run.log({f"Embaddings trajectory:  {name}": wandb.Html(animation.to_html5_video())})
     plt.close()
 
 
 ##### OPTUNA
 
-N_TRIALS = 64
+N_TRIALS = 100  # TODO
 
 def run_experiment(dsize, simple_model=True):
     # wandb.setup()
@@ -231,7 +234,7 @@ def run_experiment(dsize, simple_model=True):
     m = nodes.shape[0] - 1
 
     def objective(trial):
-        l_param = trial.suggest_int('l_param', 2, n)
+        l_param = trial.suggest_int('l_param', n // 4, n // 2)
         cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .5)
         cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 10000, 100000)
         params = trial.params
@@ -242,7 +245,7 @@ def run_experiment(dsize, simple_model=True):
                                            epochs=params['cooc_epochs_param']), scheduler=True, simple_model=simple_model)
 
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                        wandb_log=False, wandb_params=wandb_params, true_vals=true_values,
                                         log_config={'metrics_after_convergence': True})
         densehmm = GaussianDenseHMM(n, mstep_config={'cooc_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
                                                      'cooc_epochs': cooc_epochs_param, 'loss_type': 'square'},
@@ -252,14 +255,14 @@ def run_experiment(dsize, simple_model=True):
 
         densehmm.means_ = mu
         densehmm.fit_coocs(Y_true, lengths)
-        return hmm_monitor.loss[-1]
+        return densehmm.score(Y_true, lengths)
 
-    def callback(study, trial):
-        if trial.value < 0.001:
-            raise study.stop()
+    # def callback(study, trial):
+    #     if trial.value < 0.001:
+    #         raise study.stop()
 
     study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=N_TRIALS, callbacks=[callback])
+    study.optimize(objective, n_trials=N_TRIALS) # , callbacks=[callback]
     params = study.best_params
 
     # provide data for main part  of the experiment
@@ -284,7 +287,7 @@ def run_experiment(dsize, simple_model=True):
                                        epochs=0), scheduler=False, simple_model=simple_model)
 
     hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                    wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                    wandb_log=False, wandb_params=wandb_params, true_vals=true_values,
                                     log_config={'metrics_after_convergence': True})
     hmm_model = hmm.GaussianHMM(n, n_iter=EM_ITER(n))
     hmm_model.monitor_ = hmm_monitor
@@ -292,7 +295,6 @@ def run_experiment(dsize, simple_model=True):
 
     preds = hmm_model.predict(Y_true, lengths)
     perm  = find_permutation(preds, X_true)
-    hmm_monitor.run.finish()
 
     best_result["HMMlearn"] = {
         "time": time.perf_counter() - hmm_monitor._init_time,
@@ -312,7 +314,7 @@ def run_experiment(dsize, simple_model=True):
                                        epochs=params['cooc_epochs_param']), scheduler=True, simple_model=simple_model)
 
     hmm_monitor = DenseHMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                    wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                    wandb_log=False, wandb_params=wandb_params, true_vals=true_values,
                                     log_config={'metrics_after_convergence': True})
     kmeans = KMeans(n_clusters=n, random_state=0).fit(Y_true)
     nodes_tmp = np.sort(kmeans.cluster_centers_, axis=0)
@@ -331,7 +333,7 @@ def run_experiment(dsize, simple_model=True):
 
     preds = densehmm.predict(Y_true, lengths)
     perm = find_permutation(preds, X_true)
-    hmm_monitor.run.finish()
+
     best_result["DenseCooc"] = {
         "time": time.perf_counter() - hmm_monitor._init_time,
         "logprob": densehmm.score(Y_true, lengths),
@@ -342,19 +344,17 @@ def run_experiment(dsize, simple_model=True):
         "MAE_sigma": (abs(sigma.reshape(-1)[perm] - densehmm.covars_.reshape(-1))).mean()
     }
 
-    pca_z = PCA(n_components=2).fit(hmm_monitor.z[-1])
-    z = [pca_z.transform(x) for x in hmm_monitor.z]
-
-    z0 = hmm_monitor.z0
-
-    pca_u = PCA(n_components=2).fit(np.transpose(hmm_monitor.u[-1]))
-    u = [pca_u.transform(np.transpose(x)) for x in hmm_monitor.u]
-
-    draw_embeddings(z, run, "z")
-    draw_embeddings(z0, run, "z0")
-    draw_embeddings(u, run, "u")
-
-    run.finish()
+    # pca_z = PCA(n_components=2).fit(hmm_monitor.z[-1])
+    # z = [pca_z.transform(x) for x in hmm_monitor.z]
+    #
+    # z0 = hmm_monitor.z0
+    #
+    # pca_u = PCA(n_components=2).fit(np.transpose(hmm_monitor.u[-1]))
+    # u = [pca_u.transform(np.transpose(x)) for x in hmm_monitor.u]
+    #
+    # draw_embeddings(z, run, "z")
+    # draw_embeddings(z0, run, "z0")
+    # draw_embeddings(u, run, "u")
 
     with open(f"{RESULT_DIR}/optuna_s{s}_T{T}_n{n}_simple_model{simple_model}.pkl",  "wb") as f:
         joblib.dump(study,  f)
@@ -372,16 +372,19 @@ def run_false(dsize):
 
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
-    wandb.require("service")
+    # wandb.require("service")
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
-    parser.add_argument('dsize', metavar='N', type=int, nargs=3,
-                        help='s, T, n')
-    dsize = parser.parse_args().dsize
+    # parser = argparse.ArgumentParser(description='Process some integers.')
+    # parser.add_argument('dsize', metavar='N', type=int, nargs=3,
+    #                     help='s, T, n')
+    # dsize = parser.parse_args().dsize
+    #
+    # run_experiment(dsize, simple_model=True)
+    # run_experiment(dsize, simple_model=False)
 
-    run_experiment(dsize, simple_model=True)
-    run_experiment(dsize, simple_model=False)
+    # with mp.Pool(mp.cpu_count() - 2) as pool:
+    with mp.Pool(1) as pool:
+        pool.map(run_true, data_sizes)
+        pool.map(run_false, data_sizes)
 
-    # with mp.Pool(1) as pool:
-    #     pool.map(run_true, data_sizes)
-    #     pool.map(run_false, data_sizes)
+    # [(run_experiment(dsize, simple_model=True), run_experiment(dsize, simple_model=False)) for dsize in data_sizes]
