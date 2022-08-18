@@ -8,6 +8,7 @@ from celluloid import Camera
 
 from ssm.util import find_permutation
 from utils import dtv, permute_embeddings, compute_stationary, empirical_coocs
+from scipy.special import erf
 
 simple_model_params = {"mu": 10, "sigma": 1}
 complicated_model_params = {"mu": 5, "sigma": 2}
@@ -208,3 +209,11 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
 def empirical_cooc_prob(Xd, m, lengths):
     freqs, gt_omega_emp = empirical_coocs(Xd, m, lengths=lengths)
     return np.reshape(gt_omega_emp, newshape=(m, m))
+
+def normal_cooc_prob(means, covars, Qs, A):
+    A_stationary = compute_stationary(A, False)
+    B_scalars_tmp = .5 * (1 + erf((Qs[:-1, np.newaxis] - np.transpose(means)) / np.transpose(covars) / np.sqrt(2)))
+    B_scalars_tmp = np.concatenate([np.zeros((1, B_scalars_tmp.shape[1])), B_scalars_tmp, np.ones((1, B_scalars_tmp.shape[1]))], axis=0)
+    B_scalars = np.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :])
+    theta = A * A_stationary[:, None]
+    return np.matmul(np.transpose(B_scalars), np.matmul(theta, B_scalars))
