@@ -40,9 +40,9 @@ def prepare_params(n, simple_model=True):
 
 def my_hmm_sampler(pi, A, mu, sigma, T):
     n = pi.shape[0]
-    X = [np.random.choice(np.arange(n), 1, replace=True, p=pi)]
+    X = [np.random.choice(n, 1, replace=True, p=pi)]
     for t in range(T - 1):
-        X.append(np.random.choice(np.arange(n), 1, replace=True, p=A[X[t][0], :]))
+        X.append(np.random.choice(n, 1, replace=True, p=A[X[t][0], :]))
     Y = np.concatenate([np.random.normal(mu[s[0]], sigma[s[0]], 1) for s in X]).reshape(-1, 1)
     return X, Y
 

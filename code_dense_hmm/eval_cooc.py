@@ -19,10 +19,14 @@ data_sizes = [  # (s, T, n)
     (100, 1000, 8)
 ]
 
+# no_rep = 10
+# N_TRIALS = 64
+
+no_rep = 2
+N_TRIALS = 3
 
 def run_experiment(dsize, simple_model=True, l_fixed=True):
     ## setup
-
     best_result = {}
     s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, _, em_scheduler = init_experiment(dsize, simple_model)
     nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
@@ -78,7 +82,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
 
     Y_disc = (Y_true > nodes.reshape(1, -1)).sum(axis=-1).reshape(-1, 1)
 
-    for _ in range(10):
+    for _ in range(no_rep):
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                         wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                         log_config={'metrics_after_convergence': True})
@@ -98,8 +102,8 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                 "dtv_startprob": dtv(hmm_model.startprob_, pi[perm]),
                 "MAE_means": (abs(mu[perm] - hmm_model.means_[:, 0])).mean(),
                 "MAE_sigma": (abs(sigma.reshape(-1)[perm] - hmm_model.covars_.reshape(-1))).mean(),
-                "dtv_omega": dtv(empirical_cooc_prob(Y_disc, n, lengths),
-                                 normal_cooc_prob(hmm_model.means_.reshape(-1), hmm_model.covars_.reshape(-1), nodes, A))
+                "dtv_omega": dtv(empirical_cooc_prob(Y_disc, n+2, lengths),
+                                 normal_cooc_prob(hmm_model.means_.reshape(-1), hmm_model.covars_.reshape(-1), nodes[1:], A))
             }
         )
 
@@ -118,7 +122,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                  epochs=params['cooc_epochs_param']), scheduler=True,
             simple_model=simple_model)
 
-        for _ in tqdm.tqdm(range(10), desc=f"Training {name}"):
+        for _ in tqdm.tqdm(range(no_rep), desc=f"Training {name}"):
             hmm_monitor = monitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                   wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                   log_config={'metrics_after_convergence': True})
@@ -148,8 +152,8 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                     "dtv_startprob": dtv(densehmm.startprob_, pi[perm]),
                     "MAE_means": (abs(mu[perm] - densehmm.means_[:, 0])).mean(),
                     "MAE_sigma": (abs(sigma.reshape(-1)[perm] - densehmm.covars_.reshape(-1))).mean(),
-                    "dtv_omega": dtv(empirical_cooc_prob(Y_disc, n, lengths),
-                                     normal_cooc_prob(densehmm.means_.reshape(-1), densehmm.covars_.reshape(-1), nodes, A))
+                    "dtv_omega": dtv(empirical_cooc_prob(Y_disc, n+2, lengths),
+                                     normal_cooc_prob(densehmm.means_.reshape(-1), densehmm.covars_.reshape(-1), nodes[1:], A))
                 }
             )
 
