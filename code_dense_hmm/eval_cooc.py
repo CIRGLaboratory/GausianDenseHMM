@@ -171,5 +171,5 @@ if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
     with mp.Pool(8) as pool:
-        pool.map(run_true, data_sizes[1:])
+        pool.map(run_true, data_sizes)
         pool.map(run_false, data_sizes)
