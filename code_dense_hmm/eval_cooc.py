@@ -55,6 +55,10 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
     X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
     Y_true = np.concatenate([x[1] for x in data])  # observations
     lengths = [len(x[1]) for x in data]
+    nodes_tmp = mu
+    nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
+                            (nodes_tmp[1:] + nodes_tmp[:-1]).reshape(-1) / 2,
+                            np.array([Y_true.max(), np.infty])])
 
     true_values = {
         "states": X_true,
@@ -71,8 +75,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
     wandb_params["config"].update(dict(model="HMMlearn", m=0, l=0, lr=0,
                                        em_iter=em_iter(n), cooc_epochs=0,
                                        epochs=0), scheduler=False, simple_model=simple_model)
-    nodes_tmp = np.sort(mu)
-    nodes = np.concatenate([(nodes_tmp[1:] + nodes_tmp[:-1]) / 2, np.array([np.infty])])
+
     Y_disc = (Y_true > nodes.reshape(1, -1)).sum(axis=-1).reshape(-1, 1)
 
     for _ in range(10):
@@ -120,10 +123,6 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
                                   wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                   log_config={'metrics_after_convergence': True})
             # kmeans = KMeans(n_clusters=n, random_state=0).fit(Y_true)
-            nodes_tmp = mu
-            nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
-                                    (nodes_tmp[1:] + nodes_tmp[:-1]).reshape(-1) / 2,
-                                    np.array([Y_true.max(), np.infty])])
             densehmm = model(n, mstep_config={'cooc_epochs': params['cooc_epochs_param'],
                                               'cooc_lr': params['cooc_lr_param'],
                                               "l_uz": int(params['l_param']),
