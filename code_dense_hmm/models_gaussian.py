@@ -674,7 +674,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
     def __init__(self, n_hidden_states=1, n_dims=None,
                  covariance_type='full', min_covar=0.001,
                  startprob_prior=1.0, transmat_prior=1.0,
-                 discrete_observables=100,
+                 discrete_observables=0,
                  means_prior=0, means_weight=0, covars_prior=0.01, covars_weight=1,
                  random_state=None, em_iter=10, convergence_tol=1e-2, verbose=False,
                  params="stmc", init_params="stmc", logging_monitor=None,
@@ -740,7 +740,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.A_stationary = None
         self.omega, self.omega_gt_ph = None, None
         self.means_cooc, self.covars_cooc = None, None
-        self.discrete_observables = discrete_observables
+        self.discrete_observables = discrete_observables  # TODO: jeżeli podane nody, to zczytaj z rozmiaru
         self.discrete_nodes = nodes
 
     def _build_tf_em_graph(self, A_log_ker, B_log_ker, pi_log_ker, A_log_ker_normal, pi_log_ker_normal):
@@ -798,7 +798,6 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         with self.graph.as_default():
             A = A_from_reps_hmmlearn
-            # B = B_from_reps_hmmlearn  # TODO
             A_stationary = tf.placeholder(name="A_stationary",  dtype=tf.float64,
                                           shape=[self.n_components])  # Assumed to be the eigenvector of A.T
             theta = A * A_stationary[:, None]  # theta[i, j] = p(s_t = s_i, s_{t+1} = s_j) = A[i, j] * pi[i]
@@ -922,15 +921,12 @@ class GaussianDenseHMM(GammaGaussianHMM):
                         [np.array([-np.infty]), np.quantile(X, [i / self.discrete_observables for i in range(1, self.discrete_observables)]),
                          np.array([np.infty])])
                     self.discrete_nodes = Qs.astype('float64')
-
-                B_scalars_tmp = .5 * (1 + tf.erf(
-                    (self.discrete_nodes[1:-1, np.newaxis] - tf.transpose(means_cooc)) /
-                     (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-10) / np.sqrt(2)))
+                # TODO: zdecyduj i obsłuż czy podawać nieskończoności w nodach!
+                B_scalars_tmp = .5 * (1 + tf.erf((self.discrete_nodes[1:-1, np.newaxis] - tf.transpose(means_cooc)) / (tf.nn.relu(tf.transpose(covars_cooc)) + 1e-10) / np.sqrt(2)))
                 # self.penalty = tf.identity((tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components, name="penalty")
                 self.penalty = tf.identity(np.float64(0), name="penalty")
                 B_scalars_tmp = tf.concat([np.zeros((1, self.n_components)), B_scalars_tmp, np.ones((1, self.n_components))], axis=0)
                 B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_cooc")
-                # self.B_scalars_cooc = B_scalars  # TODO: remove
                 self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega, self.lr_cooc_placeholder = self._build_tf_coocs_graph(
                     A_from_reps_hmmlearn, B_scalars, self.omega_gt_ph, self.penalty)
 
@@ -949,10 +945,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         X, n_seqs, max_seqlen = super(GaussianDenseHMM, self)._init(X, lengths=lengths)
 
-        # if 'em' in self.opt_schemes:
+        # if 'em' in self.opt_schemes:  # TODO: otestuj czy powinno wrócić
         O, n_seqs, max_seqlen = self._observations_to_padded_matrix(X, lengths)
         self.tilde_O = np.ones((O.shape[0], O.shape[1], self.n_dims))
-        # INFO:  np.eye - miacierz identycznościowa
         self._init_tf(O)
         return X, n_seqs, max_seqlen
 
@@ -974,8 +969,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                 self.lr_em_placeholder:  self.scheduler(self.em_lr, it)}
 
             self.session.run(self.loss_update, feed_dict=train_input_dict)
-            # TODO: if verbose
-            # print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
+            if self.verbose:
+                print("Loss at epoch %d is %.8f" % (epoch, self.session.run(self.loss_scaled, feed_dict=train_input_dict)))
 
         A, pi = self.session.run([self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn])
         self.transmat_ = A
@@ -1168,7 +1163,6 @@ class GaussianDenseHMM(GammaGaussianHMM):
             cur_loss = self.session.run(self.loss_cooc, feed_dict=feed_dict)
             losses.append(cur_loss)
 
-            # TODO: verbose
             if epoch % 1000 == 0:
                 A, A_stat = get_ABA_stationary()
                 means_c, covars_c = self.session.run([self.means_cooc, self.covars_cooc])
@@ -1182,7 +1176,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                             transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
                                             omega_gt=omega_gt, learned_omega=self.session.run(self.omega, feed_dict),
                                             z=z, z0=z0, u=u, loss=cur_loss)
-                # print(cur_loss)
+                if self.verbose:
+                    print(cur_loss)
 
         log_dict = {}
         log_dict['cooc_losses'] = losses
