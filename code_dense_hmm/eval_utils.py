@@ -1,7 +1,7 @@
 import wandb
 import time
 import numpy as np
-
+import seaborn as sns
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from celluloid import Camera
@@ -217,3 +217,28 @@ def normal_cooc_prob(means, covars, Qs, A):
     B_scalars = np.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :])
     theta = A * A_stationary[:, None]
     return np.matmul(np.transpose(B_scalars), np.matmul(theta, B_scalars))
+
+
+def visualize_distribution(mu, sigma, n, simple_model):
+    x = np.linspace(min(mu) - 3 * max(sigma), max(mu) + 3 * max(sigma), 10000)
+    for i in range(n):
+        plt.plot(x, stats.norm.pdf(x, mu[i], sigma[i]), label=str(i))
+    plt.title(f"Normal PDFs n={n}-s={s}-T={T}-simple={simple_model}")
+    plt.show()
+
+
+def visualize_matrix(mat, title="", vmax=1):
+    sns.heatmap(mat, cmap="hot", vmax=vmax)
+    plt.title(title)
+    plt.show()
+
+
+def to_discrete_q(X, m):
+    nodes = np.concatenate([np.quantile(X, [i / m for i in range(1, m)]), np.array([np.infty])])
+    return (X > nodes.reshape(1, -1)).sum(axis=-1).reshape(-1, 1), nodes.reshape(-1)
+
+def to_discrete(X, m):
+    kmeans = KMeans(n_clusters=m, random_state=0).fit(Y_true)
+    nodes_tmp = np.sort(kmeans.cluster_centers_, axis=0)
+    nodes = np.concatenate([(nodes_tmp[1:] + nodes_tmp[:-1]) / 2, np.array([[np.infty]])])
+    return (X > nodes.reshape(1, -1)).sum(axis=-1).reshape(-1, 1), nodes.reshape(-1)
