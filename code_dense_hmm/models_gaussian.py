@@ -12,7 +12,7 @@ from scipy.stats import multivariate_normal
 from hmmlearn import _hmmc as _hmmcmod
 from hmmlearn  import _utils
 from utils import check_arr, pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, \
-    empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian, dtv, find_permutation
+    empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian, dtv, find_permutation, check_nodes
 # from models import HMMLoggingMonitor
 import time
 import itertools
@@ -741,7 +741,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.omega, self.omega_gt_ph = None, None
         self.means_cooc, self.covars_cooc = None, None
         self.discrete_observables = discrete_observables  # TODO: jeżeli podane nody, to zczytaj z rozmiaru
-        self.discrete_nodes = nodes
+        self.discrete_nodes = check_nodes(nodes)
 
     def _build_tf_em_graph(self, A_log_ker, B_log_ker, pi_log_ker, A_log_ker_normal, pi_log_ker_normal):
         # INFO:  graph chyba zostanie bez zmian, [po porstu trzeba dobrze zdefiniować kernele - DONE]

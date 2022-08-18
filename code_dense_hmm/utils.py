@@ -334,3 +334,12 @@ def find_permutation(z1, z2, K1=None, K2=None):
         perm = np.concatenate((perm, unused))
 
     return perm
+
+
+def check_nodes(nodes):
+    nodes = nodes.reshape(-1)
+    if np.isneginf(nodes[0]):
+        nodes = np.concatenate([np.array(-np.inf),  nodes])
+    if np.isposinf(nodes[-1]):
+        nodes = np.concatenate([nodes, np.array(np.inf)])
+    return nodes
