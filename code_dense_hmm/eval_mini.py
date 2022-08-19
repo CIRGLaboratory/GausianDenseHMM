@@ -23,8 +23,8 @@ data_sizes = [  # (s, T, n)
 # no_rep = 10
 # N_TRIALS = 64
 
-no_rep = 2
-N_TRIALS = 3
+no_rep = 8
+N_TRIALS = 256
 
 def run_experiment(dsize, simple_model=True, l_fixed=True):
     ## setup
