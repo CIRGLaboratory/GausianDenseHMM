@@ -338,8 +338,8 @@ def find_permutation(z1, z2, K1=None, K2=None):
 
 def check_nodes(nodes):
     nodes = np.sort(nodes.reshape(-1))
-    if np.isneginf(nodes[0]):
-        nodes = np.concatenate([np.array(-np.inf),  nodes])
-    if np.isposinf(nodes[-1]):
-        nodes = np.concatenate([nodes, np.array(np.inf)])
-    return nodes
+    if not np.isneginf(nodes[0]):
+        nodes = np.concatenate([np.array([-np.inf]),  nodes])
+    if not np.isposinf(nodes[-1]):
+        nodes = np.concatenate([nodes, np.array([np.inf])])
+    return nodes.astype('float64')

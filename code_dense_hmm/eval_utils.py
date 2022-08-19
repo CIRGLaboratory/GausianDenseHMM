@@ -9,6 +9,7 @@ from celluloid import Camera
 from ssm.util import find_permutation
 from utils import dtv, permute_embeddings, compute_stationary, empirical_coocs
 from scipy.special import erf
+from sklearn.cluster import KMeans
 
 simple_model_params = {"mu": 10, "sigma": 1}
 complicated_model_params = {"mu": 5, "sigma": 2}
@@ -166,14 +167,14 @@ def draw_embeddings(z, run=None, name="?"):
     plt.close()
 
 
-def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, alg="coooc", l=None):
+def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, alg="coooc", l=None,  nodes=None):
     # Init pparameters
     if l is None:
         l_param = trial.suggest_int('l_param', n // 4, n // 2)
     else:
         l_param = int(l)
-    cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .5)
-    cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 10000, 100000)
+    cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .75)
+    cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 1000, 1000000)
     lls = []
 
     # Check hyper-parameters
@@ -186,7 +187,7 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
         else:
             mstep_config = {'em_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
                             'em_epochs': cooc_epochs_param // 5000}
-        hmm_model = model(n, mstep_config=mstep_config, verbose=False,
+        hmm_model = model(n, mstep_config=mstep_config, verbose=False, nodes=nodes,
                           covariance_type='diag', em_iter=em_iter(n), logging_monitor=hmm_monitor,
                           init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"},
                           discrete_observables=m)
@@ -200,11 +201,12 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
         else:
             raise ValueError("Unknown learning algorithm.  Must be one of: cooc, em.")
 
-        lls.append(hmm_model.score(Y_true, lengths))
+        # lls.append(hmm_model.score(Y_true, lengths))
+        lls.append(hmm_model.logging_monitor.loss[-1])
 
     lls = np.array(lls)
     # optimize for log-likelihood and stability of the solution (no ground truth needed)
-    return lls.mean(), lls.std()
+    return lls.mean()  #, lls.std()
 
 def empirical_cooc_prob(Xd, m, lengths):
     freqs, gt_omega_emp = empirical_coocs(Xd, m, lengths=lengths)
@@ -238,7 +240,7 @@ def to_discrete_q(X, m):
     return (X > nodes.reshape(1, -1)).sum(axis=-1).reshape(-1, 1), nodes.reshape(-1)
 
 def to_discrete(X, m):
-    kmeans = KMeans(n_clusters=m, random_state=0).fit(Y_true)
+    kmeans = KMeans(n_clusters=m, random_state=0).fit(X)
     nodes_tmp = np.sort(kmeans.cluster_centers_, axis=0)
     nodes = np.concatenate([(nodes_tmp[1:] + nodes_tmp[:-1]) / 2, np.array([[np.infty]])])
     return (X > nodes.reshape(1, -1)).sum(axis=-1).reshape(-1, 1), nodes.reshape(-1)
