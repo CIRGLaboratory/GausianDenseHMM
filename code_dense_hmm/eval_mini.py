@@ -46,7 +46,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
         study = optuna.create_study(direction='minimize')
         study.optimize(
             lambda trial: objective(trial, n, m, models[name], monitors[name], Y_true, lengths, mu, em_scheduler,
-                                    nodes=nodes, alg=algs[name], l=int(l)), n_trials=N_TRIALS)
+                                    nodes=nodes, alg=algs[name], l=int(l), no_rep=no_rep), n_trials=N_TRIALS)
         with open(f"{RESULT_DIR}/optuna_{name}_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.pkl", "wb") as f:
             joblib.dump(study, f)
         # best_params[name] = study.best_trials[0].params

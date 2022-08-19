@@ -167,7 +167,7 @@ def draw_embeddings(z, run=None, name="?"):
     plt.close()
 
 
-def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, alg="coooc", l=None,  nodes=None):
+def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, alg="coooc", l=None,  nodes=None, no_rep=8):
     # Init pparameters
     if l is None:
         l_param = trial.suggest_int('l_param', n // 4, n // 2)
@@ -178,7 +178,7 @@ def objective(trial, n, m, model, monitor,  Y_true, lengths, mu, em_scheduler, a
     lls = []
 
     # Check hyper-parameters
-    for _ in range(8):
+    for _ in range(no_rep):
         hmm_monitor = monitor(tol=TOLERANCE, n_iter=0,
                               verbose=False, wandb_log=False, log_config={'metrics_after_convergence': True})
         if alg == "cooc":
