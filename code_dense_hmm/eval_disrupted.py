@@ -53,7 +53,7 @@ def generate_data_3(pi, A, mu, sigma, T, s, param=0.25):
     X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
     Y_true = np.concatenate([x[1] for x in data])  # observations
     maxi = (mu[1:] - mu[:-1]).max() * param
-    Y_true += np.array([i/maxi for i in range(s*T)])
+    Y_true += np.array([i/maxi for i in range((s*T)**2)])
     lengths = np.array([len(x[1]) for x in data])
     return X_true, Y_true, lengths
 

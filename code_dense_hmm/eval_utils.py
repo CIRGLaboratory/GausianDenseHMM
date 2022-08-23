@@ -150,6 +150,63 @@ def init_experiment(dsize, simple_model):
     return s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, data, em_scheduler
 
 
+    def em_scheduler(max_lr, it):
+        if it <= np.ceil(EM_ITER_tmp / 3):
+            return max_lr * np.cos(3 * (np.ceil(EM_ITER_tmp / 3) - it) * np.pi * .33 / EM_ITER_tmp)
+        else:
+            return max_lr * np.cos((it - np.ceil(EM_ITER_tmp / 3)) * np.pi * .66 / EM_ITER_tmp) ** 2
+
+    result = {
+        "number_of_sequences": s,
+        "sequence_length": T,
+        "number_of_hidden_states": n,
+        "pi": pi.tolist(),
+        "A": A.tolist(),
+        "mu": mu.tolist(),
+        "sigma": sigma.tolist(),
+        "simple_model": simple_model,
+        "data": [X_true.tolist(), Y_true.tolist(), lengths],
+        "hmmlearn_runs": [],
+        "standard_gaussian_runs": [],
+        "dense_em_runs": [],
+        "dense_cooc_runs": []
+    }
+
+    true_values = {
+        "states": X_true,
+        "transmat": A,
+        "startprob": pi,
+        "means": mu,
+        "covars": sigma
+    }
+
+    wandb_params = {
+        "init": {
+            "project": "gaussian-dense-hmm",
+            "entity": "cirglaboratory",
+            "save_code": True,
+            "group": f"eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
+            "name": f"PDFs",
+            "reinit": True
+        },
+        "config": {
+            "n": n,
+            "s": s,
+            "T": T,
+            "model": None,
+            "m": None,
+            "l": None,
+            "lr": 0,
+            "em_epochs": 0,
+            "em_iter": EM_ITER_tmp,
+            "cooc_epochs": 0,
+            "epochs": 0,
+            "simple_model": simple_model,
+            "scheduler": em_scheduler
+        }
+    }
+
 def draw_embeddings(z, run=None, name="?"):
     fig = plt.figure(figsize=(5, 5))
     camera = Camera(fig)
