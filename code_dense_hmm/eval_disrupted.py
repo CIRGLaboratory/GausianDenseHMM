@@ -13,7 +13,7 @@ import tqdm
 np.random.seed(2022)
 
 t = time.localtime()
-RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-disrupted-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-disrupted-fixed-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
     (100, 200, 3)
@@ -36,7 +36,11 @@ def generate_data_1(pi, A, mu, sigma, T, s, param=0.5):
     X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
     Y_true = np.concatenate([x[1] for x in data])  # observations
     lengths = np.array([len(x[1]) for x in data])
-    return X_true, Y_true, lengths
+    nodes_tmp = np.array([Y_true[X_true == i].mean() for i in range(A.shape[0])])
+    nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
+                            (nodes_tmp[1:] + nodes_tmp[:-1]).reshape(-1) / 2,
+                            np.array([Y_true.max(), np.infty])])
+    return X_true, Y_true, lengths, nodes
 
 
 def generate_data_2(pi, A, mu, sigma, T, s, param=0.5):
@@ -47,7 +51,11 @@ def generate_data_2(pi, A, mu, sigma, T, s, param=0.5):
     X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
     Y_true = np.concatenate([x[1] for x in data])  # observations
     lengths = np.array([len(x[1]) for x in data])
-    return X_true, Y_true, lengths
+    nodes_tmp = np.array([Y_true[X_true == i].mean() for i in range(A.shape[0])])
+    nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
+                            (nodes_tmp[1:] + nodes_tmp[:-1]).reshape(-1) / 2,
+                            np.array([Y_true.max(), np.infty])])
+    return X_true, Y_true, lengths, nodes
 
 
 def generate_data_3(pi, A, mu, sigma, T, s, param=0.25):
@@ -57,7 +65,11 @@ def generate_data_3(pi, A, mu, sigma, T, s, param=0.25):
     maxi = (mu[1:] - mu[:-1]).max() * param
     Y_true += np.array([[i * maxi / (s*T)] for i in range(s*T)])
     lengths = np.array([len(x[1]) for x in data])
-    return X_true, Y_true, lengths
+    nodes_tmp = np.array([Y_true[X_true == i].mean() for i in range(A.shape[0])])
+    nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
+                            (nodes_tmp[1:] + nodes_tmp[:-1]).reshape(-1) / 2,
+                            np.array([Y_true.max(), np.infty])])
+    return X_true, Y_true, lengths, nodes
 
 
 disruptions = [generate_data_1, generate_data_2, generate_data_3]
@@ -77,7 +89,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
     n = dsize[2]
     pi, A, mu, sigma = prepare_params(n, simple_model)
     best_result = dict()
-    X_true, Y_true, lengths = disruptions[disruption - 1](pi, A, mu, sigma, T, s, param=param)
+    X_true, Y_true, lengths, nodes = disruptions[disruption - 1](pi, A, mu, sigma, T, s, param=param)
 
     EM_ITER_tmp = em_iter(n)
 
@@ -116,7 +128,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"eval-disrupted-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"eval-disrupted-cooc-final-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -137,10 +149,6 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
             "scheduler": em_scheduler
         }
     }
-
-    nodes = np.concatenate([np.array([-np.infty, Y_true.min()]),
-                            (mu[1:] + mu[:-1]) / 2,
-                            np.array([Y_true.max(), np.infty])])
     m = nodes.shape[0] - 1
 
     models = dict(dense=GaussianDenseHMM)
