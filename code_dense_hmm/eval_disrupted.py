@@ -13,7 +13,7 @@ import tqdm
 np.random.seed(2022)
 
 t = time.localtime()
-RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-disrupted-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
     (100, 200, 3)
@@ -114,7 +114,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
             "project": "gaussian-dense-hmm",
             "entity": "cirglaboratory",
             "save_code": True,
-            "group": f"eval-disrupted-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
+            "group": f"eval-disrupted-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}",
             "job_type": f"n={n}-s={s}-T={T}-simple={simple_model}",
             "name": f"PDFs",
             "reinit": True
@@ -235,7 +235,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
             }
         )
 
-    with open(f"{RESULT_DIR}/best_result_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.json", "w") as f:
+    with open(f"{RESULT_DIR}/best_result_d{disruption}_p{param}_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.json", "w") as f:
         json.dump(best_result, f, indent=4)
     return 0
 
