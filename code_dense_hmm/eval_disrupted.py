@@ -55,7 +55,7 @@ def generate_data_3(pi, A, mu, sigma, T, s, param=0.25):
     X_true = np.concatenate([np.concatenate(y[0]) for y in data])  # states
     Y_true = np.concatenate([x[1] for x in data])  # observations
     maxi = (mu[1:] - mu[:-1]).max() * param
-    Y_true += np.array([[i/maxi] for i in range(s*T)])
+    Y_true += np.array([[i * maxi / (s*T)] for i in range(s*T)])
     lengths = np.array([len(x[1]) for x in data])
     return X_true, Y_true, lengths
 
@@ -195,7 +195,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
     params = dict(l_param=int(l_param), cooc_lr_param=lr_param, cooc_epochs_param=epochs_param)
     best_result[name] = list()
     wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
-                                 "name": f"d{disruption}-p{param}-l={params['l_param']}-lr={params['cooc_lr_param']}-epochs={params['cooc_epochs_param']}"})
+                                 "name": f"dis{disruption}-p{param}-l={params['l_param']}-lr={params['cooc_lr_param']}-epochs={params['cooc_epochs_param']}"})
     wandb_params["config"].update(
         dict(model="dense_cooc", m=0, l=int(params['l_param']), lr=params['cooc_lr_param'],
              em_iter=em_iter(n), cooc_epochs=params['cooc_epochs_param'],
