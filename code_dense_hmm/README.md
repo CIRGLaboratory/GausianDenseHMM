@@ -36,9 +36,3 @@ Contains custom implementation of standard GaussianHMM and implementation of Den
    - [co-occurrence_expectations.ipynb](co-occurrence_expectations.ipynb) - a simulation how do co-occurence matrix differ for real and sample distribution.
    - [discretisation.ipynb](discretisation.ipynb) - illustration of selected discretization technique
 
-# TODO
-
-- zrób kopie wyników
-- ujednolić testy żeby korzystał z eval_utils
-- ujednolic dyskretyzacje (do utils)
-- poprawic implementacje wokół nodów
