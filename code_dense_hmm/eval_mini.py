@@ -15,15 +15,16 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (1000, 10000, 100),
-    (100, 1000, 8)
+    (10, 200, 3),
+    (10, 200, 5),
+    (10, 200, 10)
 ]
 
 # no_rep = 10
 # N_TRIALS = 64
 
-no_rep = 2
-N_TRIALS = 3
+no_rep = 8
+N_TRIALS = 256
 
 def run_experiment(dsize, simple_model=True, l_fixed=True):
     ## setup
@@ -39,15 +40,16 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
     algs = dict(cooc="cooc", dense="cooc", dense_em="em")
 
     ## Tune hyper-parameters
-    l = np.ceil(n / 3) if l_fixed else None
+    l = max(np.ceil(n / 3), 2) if l_fixed else None
     best_params = dict()
-    for name in tqdm.tqdm(["cooc", "dense", "dense_em"],  desc="Hyper-param tuning"):
-        study = optuna.create_study(directions=['maximize', 'minimize'])
+    for name in tqdm.tqdm(["dense"],  desc="Hyper-param tuning"):
+        study = optuna.create_study(direction='minimize')
         study.optimize(
             lambda trial: objective(trial, n, m, models[name], monitors[name], Y_true, lengths, mu, em_scheduler,
-                                    alg=algs[name], l=int(l)), n_trials=N_TRIALS, nodes=nodes)
+                                    nodes=nodes, alg=algs[name], l=int(l), no_rep=no_rep), n_trials=N_TRIALS)
         with open(f"{RESULT_DIR}/optuna_{name}_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.pkl", "wb") as f:
             joblib.dump(study, f)
+        # best_params[name] = study.best_trials[0].params
         best_params[name] = study.best_params
         if l_fixed:
             best_params[name]["l_param"] = l
@@ -108,7 +110,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
         )
 
     # Custom models
-    for name in tqdm.tqdm(["cooc", "dense", "dense_em"], desc="Model building"):
+    for name in tqdm.tqdm(["dense"], desc="Model building"):
         model = models[name]
         monitor = monitors[name]
         alg = algs[name]
@@ -173,6 +175,8 @@ def run_false(dsize):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
-    with mp.Pool(1) as pool:
-        pool.map(run_true, data_sizes)
-        pool.map(run_false, data_sizes)
+    for dsize in tqdm.tqdm(data_sizes,  desc="Data sizes"):
+        run_true(dsize)
+    # with mp.Pool(1) as pool:
+    #     pool.map(run_true, data_sizes)
+    #     pool.map(run_false, data_sizes)
