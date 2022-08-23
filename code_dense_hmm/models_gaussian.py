@@ -92,7 +92,8 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 self.wandb_params["config"].update(wandb_params["config"])
 
         if wandb_init & wandb_log:
-            self.run = wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"], start_method="fork")
+            self.run = wandb.init(**self.wandb_params["init"], config=self.wandb_params["config"],
+                                  settings=wandb.Settings(start_method="fork"))
         elif wandb_log:
             self.run = run
 
