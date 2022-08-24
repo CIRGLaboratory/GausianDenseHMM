@@ -15,9 +15,9 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    # (10, 200, 3),
+    (10, 200, 3),
     # (10, 200, 5),
-    (100, 2000, 10)
+    # (100, 2000, 10)
 ]
 
 # no_rep = 10
@@ -176,7 +176,7 @@ if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
     for dsize in tqdm.tqdm(data_sizes,  desc="Data sizes"):
-        run_true(dsize)
+        run_false(dsize)
     # with mp.Pool(1) as pool:
     #     pool.map(run_true, data_sizes)
     #     pool.map(run_false, data_sizes)
