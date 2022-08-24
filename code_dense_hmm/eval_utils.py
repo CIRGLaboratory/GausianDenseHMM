@@ -12,7 +12,7 @@ from scipy.special import erf
 from sklearn.cluster import KMeans
 
 simple_model_params = {"mu": 10, "sigma": 1}
-complicated_model_params = {"mu": 5, "sigma": 2}
+complicated_model_params = {"mu": 8, "sigma": 2}
 
 
 def em_iter(n):
@@ -34,8 +34,10 @@ def prepare_params(n, simple_model=True):
         mu = np.arange(n) * simple_model_params["mu"]
         sigma = np.ones(shape=n) * simple_model_params["sigma"]
     else:
-        mu = np.random.uniform(0, n * complicated_model_params["mu"], size=n)
-        sigma = np.random.uniform(0.001,  1, size=n) * complicated_model_params["sigma"]
+        mu = np.arange(n) * complicated_model_params["mu"]
+        sigma = np.ones(shape=n) * complicated_model_params["sigma"]
+        # mu = np.random.uniform(0, n * complicated_model_params["mu"], size=n)
+        # sigma = np.random.uniform(0.001,  1, size=n) * complicated_model_params["sigma"]
     return pi, A, mu, sigma
 
 
