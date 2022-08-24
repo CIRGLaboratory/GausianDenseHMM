@@ -164,7 +164,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
     # HMMlearn
     best_result["HMMlearn"] = list()
     wandb_params["init"].update({"job_type": f"n={n}-s={s}-T={s}-simple={simple_model}",
-                                 f"HMMlearn-dis{disruption}-p{param}-l={params['l_param']}-lr={params['cooc_lr_param']}-epochs={params['cooc_epochs_param']}"})
+                                 "name":  f"HMMlearn-dis{disruption}-p{param}"})
     wandb_params["config"].update(dict(model="HMMlearn", m=0, l=0, lr=0,
                                        em_iter=em_iter(n), cooc_epochs=0,
                                        epochs=0), scheduler=False, simple_model=simple_model)
