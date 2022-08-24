@@ -165,18 +165,18 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
 
 
 def run_true(dsize):
-    return run_experiment(dsize, simple_model=True, l_fixed=True)
+    return run_experiment(dsize, simple_model=False, l_fixed=True)
 
 
 def run_false(dsize):
-    return run_experiment(dsize, simple_model=True, l_fixed=False)
+    return run_experiment(dsize, simple_model=False, l_fixed=False)
 
 
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
 
     for dsize in tqdm.tqdm(data_sizes,  desc="Data sizes"):
-        run_false(dsize)
+        run_true(dsize)
     # with mp.Pool(1) as pool:
     #     pool.map(run_true, data_sizes)
     #     pool.map(run_false, data_sizes)
