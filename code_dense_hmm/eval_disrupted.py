@@ -79,9 +79,9 @@ def parse_args():
     parser.add_argument("-d", "--disruption", type=int, help="number of disruption 1, ..., 6",
                         choices=[1, 2, 3])
     parser.add_argument("-p", "--param", type=float, help="param of disruption")
-    parser.add_argument("-s", "--simple", type=bool, help="simple (separable) distributions", default=True)
+    parser.add_argument("-s", "--simple", type=int, help="simple (separable) distributions", default=1)
     args = parser.parse_args()
-    return args.disruption,  args.param,  args.simple
+    return args.disruption,  args.param,  bool(args.simple)
 
 
 def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
