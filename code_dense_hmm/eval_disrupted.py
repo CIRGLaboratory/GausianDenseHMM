@@ -182,6 +182,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
 
         preds = hmm_model.predict(Y_true, lengths)
         perm = find_permutation(preds, X_true)
+        perm2 = find_permutation(X_true, preds)
 
         best_result["HMMlearn"].append(
             {
@@ -193,7 +194,8 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
                 "MAE_means": (abs(mu[perm] - hmm_model.means_[:, 0])).mean(),
                 "MAE_sigma": (abs(sigma.reshape(-1)[perm] - hmm_model.covars_.reshape(-1))).mean(),
                 "dtv_omega": dtv(empirical_cooc_prob(Y_disc, n+2, lengths),
-                                 normal_cooc_prob(hmm_model.means_.reshape(-1), hmm_model.covars_.reshape(-1), nodes[1:], A))
+                                 normal_cooc_prob(hmm_model.means_.reshape(-1), hmm_model.covars_.reshape(-1), nodes[1:],
+                                                  hmm_model.transmat_[perm2, :][:, perm2]))
             }
         )
 
@@ -231,6 +233,7 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
 
         preds = densehmm.predict(Y_true, lengths)
         perm = find_permutation(preds, X_true)
+        perm2 = find_permutation(X_true, preds)
 
         best_result[name].append(
             {
@@ -242,7 +245,8 @@ def run_experiment(dsize, disruption, param, simple_model=True, l_fixed=True):
                 "MAE_means": (abs(mu[perm] - densehmm.means_[:, 0])).mean(),
                 "MAE_sigma": (abs(sigma.reshape(-1)[perm] - densehmm.covars_.reshape(-1))).mean(),
                 "dtv_omega": dtv(empirical_cooc_prob(Y_disc, n+2, lengths),
-                                 normal_cooc_prob(densehmm.means_.reshape(-1), densehmm.covars_.reshape(-1), nodes[1:], A))
+                                 normal_cooc_prob(densehmm.means_.reshape(-1), densehmm.covars_.reshape(-1), nodes[1:],
+                                                  densehmm.transmat_[perm2, :][:, perm2]))
             }
         )
 
