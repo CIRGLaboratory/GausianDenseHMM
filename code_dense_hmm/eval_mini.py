@@ -15,9 +15,10 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (10, 200, 3),
+    # (10, 200, 3),
     # (10, 200, 5),
     # (100, 2000, 10)
+    (100, 2000, 25)
 ]
 
 # no_rep = 10
