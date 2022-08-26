@@ -166,7 +166,7 @@ def run_experiment(dsize, simple_model=True, l_fixed=True):
 
 
 def run_true(dsize):
-    return run_experiment(dsize, simple_model=False, l_fixed=True)
+    return run_experiment(dsize, simple_model=True, l_fixed=True)
 
 
 def run_false(dsize):
