@@ -23,8 +23,8 @@ no_rep = 8
 
 # From previous hyperparameter tuning (eval_cooc.py)
 l_param = 2
-lr_param = 0.2200833144117315
-epochs_param = 997953
+lr_param = 0.036192647318347725
+epochs_param = 481442
 
 def generate_data_1(pi, A, mu, sigma, T, s, param=0.5):
     delta_mu = mu[1:] - mu[:-1]
