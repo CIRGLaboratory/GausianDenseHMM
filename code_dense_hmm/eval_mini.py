@@ -15,16 +15,17 @@ t = time.localtime()
 RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 data_sizes = [  # (s, T, n)
-    (10, 200, 3),
-    (10, 200, 5),
-    (10, 200, 10)
+    # (10, 200, 3),
+    # (10, 200, 5),
+    # (100, 2000, 10)
+    (100, 2000, 25)
 ]
 
 # no_rep = 10
 # N_TRIALS = 64
 
-no_rep = 8
-N_TRIALS = 256
+no_rep = 4
+N_TRIALS = 64
 
 def run_experiment(dsize, simple_model=True, l_fixed=True):
     ## setup
@@ -169,7 +170,7 @@ def run_true(dsize):
 
 
 def run_false(dsize):
-    return run_experiment(dsize, simple_model=True, l_fixed=False)
+    return run_experiment(dsize, simple_model=False, l_fixed=False)
 
 
 if __name__ == "__main__":
