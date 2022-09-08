@@ -79,4 +79,4 @@ if __name__ == "__main__":
         ratings = pd.concat([ratings, new_scores], axis=0)
 
     with open(f"{RESULT_DIR}/all_saturation.json", "w") as f:
-        json.dump(saturation_list,  f)
+        json.dump(saturation_list, f, indent=4)
