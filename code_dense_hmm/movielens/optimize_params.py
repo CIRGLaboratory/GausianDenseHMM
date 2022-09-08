@@ -15,8 +15,8 @@ RESULT_DIR = f'../../data/benchmark_rs/optimize-{t.tm_year}-{t.tm_mon}-{t.tm_mda
 
 
 def train_eval_svd(trial, ratings_train, ratings_test):
-    n_epochs = trial.suggest_int('n_epochs', 10, 1000)
-    lr = trial.suggest_loguniform("lr", 1e-4, .75)
+    n_epochs = trial.suggest_int('n_epochs', 10, 500)
+    lr = trial.suggest_loguniform("lr", 1e-3, .75)
     reg = trial.suggest_loguniform("lr", 1e-4, .75)
     n_factors = trial.suggest_int('n_factors', 3, 100)
 
@@ -29,6 +29,10 @@ def train_eval_svd(trial, ratings_train, ratings_test):
 
     with open(f"{RESULT_DIR}/params_all.json", "a") as f:
         json.dump(dict(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors, rmse=rmse), f, indent=4)
+
+    if np.isnan(rmse).sum() > 0:
+        rmse = 100000
+
     return rmse
 
 
