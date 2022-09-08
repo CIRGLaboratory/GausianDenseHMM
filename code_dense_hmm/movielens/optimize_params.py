@@ -25,13 +25,14 @@ def train_eval_svd(trial, ratings_train, ratings_test):
     fsvd.fit(X=ratings_train)
 
     preds = fsvd.predict(ratings_test)
+
+    if np.isnan(preds).sum() > 0:
+        return 1000
+
     rmse = np.sqrt(mean_squared_error(ratings_test['rating'], preds))
 
     with open(f"{RESULT_DIR}/params_all.json", "a") as f:
         json.dump(dict(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors, rmse=rmse), f, indent=4)
-
-    if np.isnan(rmse).sum() > 0:
-        rmse = 100000
 
     return rmse
 
