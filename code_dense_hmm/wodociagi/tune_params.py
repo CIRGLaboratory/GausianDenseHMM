@@ -218,7 +218,6 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     n, no_reps, no_trials, l_fixed, covar_type = parse_args()
-    print(covar_type)
 
     Y_true, lengths = prepare_data()
 
