@@ -17,7 +17,7 @@ RESULT_DIR = f'../../data/benchmark_rs/optimize-{t.tm_year}-{t.tm_mon}-{t.tm_mda
 def train_eval_svd(trial, ratings_train, ratings_test):
     n_epochs = trial.suggest_int('n_epochs', 10, 500)
     lr = trial.suggest_loguniform("lr", 1e-3, .75)
-    reg = trial.suggest_loguniform("lr", 1e-4, .75)
+    reg = trial.suggest_loguniform("reg", 1e-4, .75)
     n_factors = trial.suggest_int('n_factors', 3, 100)
 
     fsvd = FSVD(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors,
