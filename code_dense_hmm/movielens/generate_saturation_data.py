@@ -4,6 +4,7 @@ import json
 import time
 from funk_svd import SVD as FSVD
 from pathlib import Path
+from tqdm import tqdm
 
 GENRE1 = "Action"
 GENRE2 = "Romance"
@@ -26,10 +27,14 @@ def get_rating(df, u, i):
 
 
 if __name__ == "__main__":
+    print("START")
+
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     ratings = pd.read_csv('../../data/rating.csv').rename(columns={"userId": 'u_id',  "movieId": "i_id"})
     movies = pd.read_csv('../../data/movie.csv').rename(columns={"movieId": "i_id"})
     genres = pd.DataFrame({k: {g: True for g in v} for k, v in movies.set_index('i_id').genres.apply(lambda gs: gs.split("|")).to_dict().items()}).fillna(False).transpose()
+
+    print("Read data - DONE")
 
     np.random.seed(2022)
 
@@ -41,11 +46,14 @@ if __name__ == "__main__":
          "i_id": i,
          "rating_real": get_rating(ratings, u, i)}
         for u in users for i in all_movies])
+
     movies_available = pd.concat([movies_available, genres.loc[movies_available.i_id].reset_index(drop=True)], axis=1)
+
+    print("Prepare variables - DONE")
 
     saturation_list = []
 
-    for i in range(1000):
+    for i in tqdm(range(1000)):
         fsvd = FSVD(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors,
                     early_stopping=True, shuffle=False, min_rating=1, max_rating=5)
         fsvd.fit(ratings)
