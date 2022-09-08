@@ -40,8 +40,8 @@ def parse_args():
     # parser.add_argument("--simple-model", action="store_true", help="check simple example")
     parser.add_argument("-l", action="store_true", help="fix embedding length")
     # parser.add_argument("-i",  "--input", type=ascii, help="input data path", default="")
-    parser.add_argument("-c",  "--covar-type", type=ascii, help="covariance type,  one of  diag, full, tied, spherical",
-                        default="diag")
+    parser.add_argument("-c",  "--covar-type", type=str, help="covariance type,  one of  diag, full, tied, spherical",
+                        default='diag')
     args = parser.parse_args()
     return args.n, args.r, args.q, args.l, args.covar_type
 
