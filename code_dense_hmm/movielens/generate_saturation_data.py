@@ -41,7 +41,7 @@ if __name__ == "__main__":
     users = np.random.choice(ratings.u_id.unique(), 16, replace=False)
     all_movies = genres.index.values
 
-    movies_tmp = ratings.pivot('u_id', 'i_id', 'rating')
+    movies_tmp = ratings.loc[ratings.u_id.isin(users)].pivot('u_id', 'i_id', 'rating')
     movies_available = pd.melt(movies_tmp.reset_index(),
                                id_vars='u_id',
                                value_vars=movies_tmp.columns,
