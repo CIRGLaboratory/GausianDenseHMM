@@ -96,7 +96,7 @@ def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
 
 def tune_hyperparams(Y_true, lengths, n, covar_type):
     l = max(np.ceil(n / 3), 2) if l_fixed else None
-    study = optuna.create_study(direction='minimize')
+    study = optuna.create_study(direction='maximize')
 
     study.optimize(
         lambda trial: objective(trial, n, Y_true, lengths, covar_type, l=int(l), no_rep=no_trials),
