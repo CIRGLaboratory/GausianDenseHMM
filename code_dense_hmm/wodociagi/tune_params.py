@@ -1,8 +1,9 @@
 from hmmlearn import hmm
 import numpy as np
 import pandas as pd
-import os
-os.chdir("..")
+import sys
+from pathlib import Path
+sys.path.insert(0, Path(__file__).parent.absolute)
 from models_gaussian_2d import GaussianDenseHMM, HMMLoggingMonitor, DenseHMMLoggingMonitor
 import joblib
 import json
