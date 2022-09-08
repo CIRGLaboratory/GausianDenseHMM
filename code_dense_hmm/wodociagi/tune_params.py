@@ -29,18 +29,18 @@ algs = dict(dense="cooc", dense_em="em")
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-s", type=int, help="number of sentences",  default=100)
-    parser.add_argument("-t", type=int, help="lengths of sentence", default=100)
+    # parser.add_argument("-s", type=int, help="number of sentences",  default=100)
+    # parser.add_argument("-t", type=int, help="lengths of sentence", default=100)
     parser.add_argument("-n", type=int, help="number of states", default=10)
     parser.add_argument("-r", type=int, help="number of repetitions in each hyper-parameters evaluation", default=8)
     parser.add_argument("-q", type=int, help="number of hyper-parameters trials", default=64)
-    parser.add_argument("--simple-model", action="store_true", help="check simple example")
+    # parser.add_argument("--simple-model", action="store_true", help="check simple example")
     parser.add_argument("-l", action="store_true", help="fix embedding length")
-    parser.add_argument("-i",  "--input", type=ascii, help="input data path", default="")
+    # parser.add_argument("-i",  "--input", type=ascii, help="input data path", default="")
     parser.add_argument("-c",  "--covar-type", type=ascii, help="covariance type,  one of  diag, full, tied, spherical",
                         default="diag")
     args = parser.parse_args()
-    return args.s, args.t, args.n, args.r, args.q,args.simple_model, args.l,  args.input,  args.covar_type
+    return args.n, args.r, args.q, args.l, args.covar_type
 
 def prepare_data():
     df_main = pd.read_excel('../../data/Dane_Uwr.xlsx', sheet_name='Surowe_hydraulika').ffill()
@@ -111,6 +111,7 @@ def tune_hyperparams(Y_true, lengths, n, covar_type):
 def normal_cooc_prob(means, covars, nodes, A, covar_type):
     A_stationary = compute_stationary(A, False)
 
+    B_scalars_tmp = None
     if means.shape[1] == 1:
         B_scalars_tmp = .5 * (
                 1 + erf((nodes - np.transpose(means)) /
@@ -144,7 +145,7 @@ def normal_cooc_prob(means, covars, nodes, A, covar_type):
     return np.matmul(np.transpose(B_scalars), np.matmul(theta, B_scalars))
 
 
-def run_models(params, Y_true, lengths, no_rep):
+def run_models(params, Y_true, lengths, no_rep, covar_type):
     best_result = dict()
 
     def em_scheduler(max_lr, it):
@@ -159,12 +160,10 @@ def run_models(params, Y_true, lengths, no_rep):
                                      "name": "dense"})
         wandb_params["config"].update(
             dict(model="dense_cooc", l=int(params['l_param']), lr=params['cooc_lr_param'],
-                 em_iter=em_iter(n), cooc_epochs=params['cooc_epochs_param'],
-                 epochs=params['cooc_epochs_param']),
-            scheduler=True, covar_type=covar_type, simple_model=simple_model)
+                 cooc_epochs=params['cooc_epochs_param'], scheduler=True, covar_type=covar_type))
 
         hmm_monitor = DenseHMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                              wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                              wandb_log=True, wandb_params=wandb_params, true_vals=None,
                               log_config={'metrics_after_convergence': True})
         densehmm = GaussianDenseHMM(n, mstep_config={'cooc_epochs': params['cooc_epochs_param'],
                                           'cooc_lr': params['cooc_lr_param'],
@@ -181,7 +180,7 @@ def run_models(params, Y_true, lengths, no_rep):
                 "logprob": densehmm.score(Y_true, lengths),
                 "dtv_omega": dtv(empirical_cooc_prob(densehmm._to_discrete(Y_true), n + 2, lengths),
                                  normal_cooc_prob(densehmm.means_.reshape(-1), densehmm.covars_.reshape(-1),
-                                                  densehmm.discrete_nodes, A))
+                                                  densehmm.discrete_nodes, densehmm.transmat_, covar_type))
             }
         )
 
@@ -194,7 +193,7 @@ def run_models(params, Y_true, lengths, no_rep):
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                         wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
                                         log_config={'metrics_after_convergence': True})
-        hmm_model = hmm.GaussianHMM(n, n_iter=em_iter(n))
+        hmm_model = hmm.GaussianHMM(n, n_iter=em_iter(n), covariance_type=covar_type)
         hmm_model.monitor_ = hmm_monitor
         hmm_model.fit(Y_true, lengths)
 
@@ -204,20 +203,20 @@ def run_models(params, Y_true, lengths, no_rep):
                 "logprob": hmm_model.score(Y_true, lengths),
                 "dtv_omega": dtv(empirical_cooc_prob(densehmm._to_discrete(Y_true), n + 2, lengths),
                                  normal_cooc_prob(hmm_model.means_.reshape(-1), hmm_model.covars_.reshape(-1),
-                                                  densehmm.discrete_nodes, A))
+                                                  hmm_model.discrete_nodes, hmm_model.transmat_, covar_type))
             }
         )
 
-    with open(f"{RESULT_DIR}/best_result_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.json", "w") as f:
+    with open(f"{RESULT_DIR}/best_result_n{n}_l{l_fixed}.json", "w") as f:
         json.dump(best_result, f, indent=4)
     return 0
 
 
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
-    s, t, n, no_reps, no_trials, simple_model, l_fixed, input_path, covar_type = parse_args()
+    n, no_reps, no_trials, l_fixed, covar_type = parse_args()
 
     Y_true, lengths = prepare_data()
 
     params = tune_hyperparams(Y_true, lengths, n, covar_type)
-    run_models(params, Y_true, lengths, no_reps)
+    run_models(params, Y_true, lengths, no_reps, covar_type)
