@@ -57,7 +57,7 @@ def prepare_data():
     data = df_main.V_delta.rolling(24 * 6, center=True, min_periods=2).mean()[df_main.mtime.dt.year == 2019] - seasonal_changes
     lengths = np.array([24 * 7 * 6 for _ in range(data.shape[0] // (24 * 7 * 6))] + [
         data.shape[0] - (data.shape[0] // (24 * 7 * 6)) * 24 * 7 * 6])
-    return data, lengths
+    return data.reshape(-1, 1), lengths
 
 def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
     # Init parameters
