@@ -1,5 +1,7 @@
 from hmmlearn import hmm
-from models_gaussian import GaussianDenseHMM, HMMLoggingMonitor, DenseHMMLoggingMonitor
+import numpy as np
+import pandas as pd
+from models_gaussian_2d import GaussianDenseHMM, HMMLoggingMonitor, DenseHMMLoggingMonitor
 import joblib
 import json
 from pathlib import Path
@@ -10,6 +12,8 @@ import argparse
 import tensorflow_probability as tfp
 tfd = tfp.distributions
 import tensorflow.compat.v1 as tf
+import time
+from scipy.special import erf
 tf.disable_v2_behavior()
 
 np.random.seed(2022)
@@ -38,8 +42,21 @@ def parse_args():
     args = parser.parse_args()
     return args.s, args.t, args.n, args.r, args.q,args.simple_model, args.l,  args.input,  args.covar_type
 
+def prepare_data():
+    df_main = pd.read_excel('../../data/Dane_Uwr.xlsx', sheet_name='Surowe_hydraulika').ffill()
+    df_main.columns = ['mtime', 'P1', 'V1', 'Q1']
+    df_main = df_main.ffill()
+    df_main.head()
+    df_main["V_delta"] = np.array([0] + (df_main.V1[1:].values - df_main.V1[:-1].values).tolist())
+    df_main.loc[(df_main.V_delta.abs() > 1e+3), "V_delta"] = 0
+    seasonal_changes = df_main.V_delta.rolling(6 * 24 * 42, center=True, min_periods=2).mean().rolling(6 * 24 * 7, center=True, min_periods=2).mean()[df_main.mtime.dt.year == 2019]
 
-def objective(trial, n, Y_true, lengths, covar_type, em_scheduler, l=None, no_rep=8):
+    data = df_main.V_delta.rolling(24 * 6, center=True, min_periods=2).mean()[df_main.mtime.dt.year == 2019] - seasonal_changes
+    lengths = np.array([24 * 7 * 6 for _ in range(data.shape[0] // (24 * 7 * 6))] + [
+        data.shape[0] - (data.shape[0] // (24 * 7 * 6)) * 24 * 7 * 6])
+    return data, lengths
+
+def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
     # Init parameters
     if l is None:
         l_param = trial.suggest_int('l_param', n // 4, (n * 2) // 3)
@@ -69,27 +86,27 @@ def objective(trial, n, Y_true, lengths, covar_type, em_scheduler, l=None, no_re
 
         hmm_model.fit_coocs(Y_true, lengths)
         lls.append(hmm_model.score(Y_true, lengths))
-        # lls.append(hmm_model.logging_monitor.loss[-1])
 
     lls = np.array(lls)
     return lls.mean()
 
 
 def tune_hyperparams(Y_true, lengths, n, covar_type):
-    # Tune hyper-parameters
     l = max(np.ceil(n / 3), 2) if l_fixed else None
     study = optuna.create_study(direction='minimize')
 
     study.optimize(
-        lambda trial: objective(trial, n, Y_true, lengths, covar_type, em_scheduler, l=int(l), no_rep=no_trials),
+        lambda trial: objective(trial, n, Y_true, lengths, covar_type, l=int(l), no_rep=no_trials),
         n_trials=no_trials)
 
     with open(f"{RESULT_DIR}/optuna_cooc_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.pkl", "wb") as f:
         joblib.dump(study, f)
+
     best_params = study.best_params
     if l_fixed:
         best_params["l_param"] = l
     return best_params
+
 
 def normal_cooc_prob(means, covars, nodes, A, covar_type):
     A_stationary = compute_stationary(A, False)
@@ -200,18 +217,7 @@ if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     s, t, n, no_reps, no_trials, simple_model, l_fixed, input_path, covar_type = parse_args()
 
-    def foo(data):  # TODO
-        return 0, 0
-
-    if input_path:
-        with open(input_path, "r") as f:
-            data = json.load(f)
-        Y_true, lengths = foo(data)  # TODO
-    else:
-        s, T, n, pi, A, mu, sigma, result, true_values, wandb_params, X_true, Y_true, lengths, _, em_scheduler = init_experiment(
-            (s, t, n), simple_model)
-
-    # TODO:  data split?
+    Y_true, lengths = prepare_data()
 
     params = tune_hyperparams(Y_true, lengths, n, covar_type)
     run_models(params, Y_true, lengths, no_reps)

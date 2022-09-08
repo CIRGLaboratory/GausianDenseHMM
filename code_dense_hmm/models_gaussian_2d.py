@@ -158,16 +158,16 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 covars_mae = (abs(self.true_covars[perm] - covars)).mean() if (covars is not None) & (
                             self.true_covars is not None) else None
 
-            self.run.log({
-                "total_log_prob": log_prob,
-                "accuracy": acc,
-                "time": time.perf_counter() - self._init_time,
-                "transmat_dtv": transmat_dtv,
-                "startprob_dtv": startprob_dtv,
-                "means_mae": means_mae,
-                "covars_mae": covars_mae,
-                "omage_dtv": omega_diff
-            })
+                self.run.log({
+                    "total_log_prob": log_prob,
+                    "accuracy": acc,
+                    "time": time.perf_counter() - self._init_time,
+                    "transmat_dtv": transmat_dtv,
+                    "startprob_dtv": startprob_dtv,
+                    "means_mae": means_mae,
+                    "covars_mae": covars_mae,
+                    "omage_dtv": omega_diff
+                })
             self.accuracy.append(acc)
 
 
