@@ -7,10 +7,10 @@ from funk_svd import SVD as FSVD
 GENRE1 = "Action"
 GENRE2 = "Romance"
 
-lr = 0
-reg = 0
-n_epochs = 0
-n_factors = 0
+lr = 0.00010676587674837098
+reg = 0.00010676587674837098
+n_epochs = 779
+n_factors = 10
 
 t = time.localtime()
 RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
