@@ -61,8 +61,7 @@ if __name__ == "__main__":
 
         # calculate the saturation
         res_tmp = pd.concat([movies_available, pd.DataFrame({"pred": preds})], axis=1)
-        with open(f"{RESULT_DIR}/predictions_step_{i}.json", "w") as f:
-            json.dump(res_tmp, f)
+        res_tmp.to_parquet(f"{RESULT_DIR}/predictions_step_{i}.parquet")
 
         saturation = res_tmp.groupby("u_id").apply(lambda df:  df.sort_values("pred")[-100:].drop(["u_id", "i_id",  "pred"],  axis=1).mean()).to_dict("index")
 
