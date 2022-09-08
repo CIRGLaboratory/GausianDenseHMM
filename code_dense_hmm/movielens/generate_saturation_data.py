@@ -11,7 +11,7 @@ GENRE2 = "Romance"
 
 lr = 0.00010676587674837098
 reg = 0.00010676587674837098
-n_epochs = 779
+n_epochs = 77
 n_factors = 10
 
 t = time.localtime()
