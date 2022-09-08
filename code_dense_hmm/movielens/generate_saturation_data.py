@@ -41,11 +41,11 @@ if __name__ == "__main__":
     users = np.random.choice(ratings.u_id.unique(), 16, replace=False)
     all_movies = genres.index.values
 
-    movies_available = pd.DataFrame([
-        {"u_id": u,
-         "i_id": i,
-         "rating_real": get_rating(ratings, u, i)}
-        for u in users for i in all_movies])
+    movies_tmp = ratings.pivot('u_id', 'i_id', 'rating')
+    movies_available = pd.melt(movies_tmp.reset_index(),
+                               id_vars='u_id',
+                               value_vars=movies_tmp.columns,
+                               var_name='i_id', value_name='rating_real')
 
     movies_available = pd.concat([movies_available, genres.loc[movies_available.i_id].reset_index(drop=True)], axis=1)
 
