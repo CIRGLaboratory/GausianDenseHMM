@@ -1,7 +1,7 @@
 from hmmlearn import hmm
 import numpy as np
 import pandas as pd
-from ..models_gaussian_2d import GaussianDenseHMM, HMMLoggingMonitor, DenseHMMLoggingMonitor
+from ...models_gaussian_2d import GaussianDenseHMM, HMMLoggingMonitor, DenseHMMLoggingMonitor
 import joblib
 import json
 from pathlib import Path
