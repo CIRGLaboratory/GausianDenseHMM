@@ -3,6 +3,7 @@ import numpy as np
 import json
 import time
 from funk_svd import SVD as FSVD
+from pathlib import Path
 
 GENRE1 = "Action"
 GENRE2 = "Romance"
@@ -25,6 +26,7 @@ def get_rating(df, u, i):
 
 
 if __name__ == "__main__":
+    Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     ratings = pd.read_csv('../../data/rating.csv').rename(columns={"userId": 'u_id',  "movieId": "i_id"})
     movies = pd.read_csv('../../data/movie.csv').rename(columns={"movieId": "i_id"})
     genres = pd.DataFrame({k: {g: True for g in v} for k, v in movies.set_index('i_id').genres.apply(lambda gs: gs.split("|")).to_dict().items()}).fillna(False).transpose()
