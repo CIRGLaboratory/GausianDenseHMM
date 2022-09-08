@@ -85,7 +85,7 @@ def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
 
         hmm_model = GaussianDenseHMM(n, mstep_config=mstep_config, verbose=False,
                           covariance_type=covar_type, em_iter=em_iter(n), logging_monitor=hmm_monitor,
-                          init_params="", params="stmc", early_stopping=True, opt_schemes={"cooc"})
+                          init_params="stmc", params="stmc", early_stopping=True, opt_schemes={"cooc"})
 
         hmm_model.fit_coocs(Y_true, lengths)
         lls.append(hmm_model.score(Y_true, lengths))
@@ -102,7 +102,7 @@ def tune_hyperparams(Y_true, lengths, n, covar_type):
         lambda trial: objective(trial, n, Y_true, lengths, covar_type, l=int(l), no_rep=no_trials),
         n_trials=no_trials)
 
-    with open(f"{RESULT_DIR}/optuna_cooc_s{s}_T{T}_n{n}_simple_model{simple_model}_l{l_fixed}.pkl", "wb") as f:
+    with open(f"{RESULT_DIR}/optuna_cooc_n{n}_l{l_fixed}.pkl", "wb") as f:
         joblib.dump(study, f)
 
     best_params = study.best_params
@@ -218,6 +218,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
 if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     n, no_reps, no_trials, l_fixed, covar_type = parse_args()
+    print(covar_type)
 
     Y_true, lengths = prepare_data()
 
