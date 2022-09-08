@@ -31,7 +31,7 @@ if __name__ == "__main__":
 
     np.random.seed(2022)
 
-    users = np.random.choice(ratings.userId.unique(), 16, replace=False)
+    users = np.random.choice(ratings.u_id.unique(), 16, replace=False)
     all_movies = genres.index.values
 
     movies_available = pd.DataFrame([
