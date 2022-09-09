@@ -168,7 +168,7 @@ def normal_cooc_prob(means, covars, nodes, A, covar_type):
 
 
 def run_models(params, Y_true, lengths, no_rep, covar_type):
-    best_result = dict()
+    best_result = dict(dense=list(), hmmlearn=list())
 
     def em_scheduler(max_lr, it):
         if it <= np.ceil(params['cooc_epochs_param'] / 3):
