@@ -224,7 +224,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
                 "time": time.perf_counter() - hmm_monitor._init_time,
                 "logprob": hmm_model.score(Y_true, lengths),
                 "dtv_omega": dtv(empirical_cooc_prob(densehmm._to_discrete(Y_true), n + 2, lengths),
-                                 normal_cooc_prob(hmm_model.means_.reshape(-1), hmm_model.covars_.reshape(-1),
+                                 normal_cooc_prob(hmm_model.means_, hmm_model.covars_,
                                                   hmm_model.discrete_nodes, hmm_model.transmat_, covar_type))
             }
         )
