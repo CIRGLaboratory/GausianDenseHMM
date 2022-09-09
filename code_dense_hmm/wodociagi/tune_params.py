@@ -29,6 +29,25 @@ models = dict(dense=GaussianDenseHMM, dense_em=GaussianDenseHMM)
 monitors = dict(dense=DenseHMMLoggingMonitor, dense_em=DenseHMMLoggingMonitor)
 algs = dict(dense="cooc", dense_em="em")
 
+wandb_params = {
+    "init": {
+        "project": "gaussian-dense-hmm",
+        "entity": "cirglaboratory",
+        "save_code": True,
+        "group": "benchmark",
+        "job_type": "n={n}-s={s}-T={T}-simple={simple_model}",
+        "name": f"result",
+        "reinit": True
+    },
+    "config": {
+        "n": 0,
+        "model": None,
+        "l": None,
+        "lr": 0,
+        "cooc_epochs": 0
+    }
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
