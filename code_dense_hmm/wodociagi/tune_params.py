@@ -22,7 +22,7 @@ tf.disable_v2_behavior()
 np.random.seed(2022)
 
 t = time.localtime()
-RESULT_DIR = f'gaussian_dense_hmm_benchmark/eval-cooc-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'../../data/benchmark_mpwik/optimize-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 
 models = dict(dense=GaussianDenseHMM, dense_em=GaussianDenseHMM)
@@ -200,9 +200,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
             {
                 "time": time.perf_counter() - hmm_monitor._init_time,
                 "logprob": densehmm.score(Y_true, lengths),
-                "dtv_omega": dtv(empirical_cooc_prob(densehmm._to_discrete(Y_true), n + 2, lengths),
-                                 normal_cooc_prob(densehmm.means_, densehmm.covars_,
-                                                  densehmm.discrete_nodes, densehmm.transmat_, covar_type))
+                "dtv_omega":hmm_monitor.omega_dtv[-1]
             }
         )
 
@@ -223,9 +221,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
             {
                 "time": time.perf_counter() - hmm_monitor._init_time,
                 "logprob": hmm_model.score(Y_true, lengths),
-                "dtv_omega": dtv(empirical_cooc_prob(densehmm._to_discrete(Y_true), n + 2, lengths),
-                                 normal_cooc_prob(hmm_model.means_, hmm_model.covars_,
-                                                  hmm_model.discrete_nodes, hmm_model.transmat_, covar_type))
+                "dtv_omega": hmm_monitor.omega_dtv[-1]
             }
         )
 

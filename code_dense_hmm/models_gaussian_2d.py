@@ -124,7 +124,11 @@ class HMMLoggingMonitor(ConvergenceMonitor):
         self.u.append(u)
         self.loss.append(loss)
 
-        omega_diff = None
+        if (learned_omega is not None) & (omega_gt is not None):
+            omega_diff = dtv(learned_omega, omega_gt)
+        else:
+            omega_diff = None
+        self.omega_dtv.append(omega_diff)
         if self.wandb_log:
             acc = None
             transmat_dtv = None
@@ -132,8 +136,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             means_mae = None
             covars_mae = None
             # provide metrics
-            if (learned_omega is not None) & (omega_gt is not None):
-                omega_diff = dtv(learned_omega, omega_gt)
+
             if (self.true_states is None) | (preds is None):
                 self.run.log({
                     "total_log_prob": log_prob,
