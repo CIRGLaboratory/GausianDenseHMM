@@ -208,7 +208,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
                                      "name": f"HMMlearn"})
         wandb_params["config"].update(dict(model="HMMlearn", l=0, lr=0,
                                            em_iter=em_iter(n), cooc_epochs=0,
-                                           epochs=0), scheduler=False, simple_model=simple_model)
+                                           epochs=0), scheduler=False)
 
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
                                         wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
