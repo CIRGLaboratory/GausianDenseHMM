@@ -12,8 +12,8 @@ GENRE2 = "Romance"
 
 lr = 0.001942951202698156
 reg = 0.051518838687760575
-# n_epochs = 404
-n_epochs = 2
+n_epochs = 404
+# n_epochs = 2
 n_factors = 90
 
 t = time.localtime()
@@ -82,8 +82,8 @@ saturation_list = []
 
 pool = Pool(25)
 
-# for i in tqdm(range(40)):
-for i in tqdm(range(2)):
+for i in tqdm(range(40)):
+# for i in tqdm(range(2)):
     genre_tmp = GENRE1 if i % 2 else GENRE2
     #  provide new scores for 25 iterations
     fsvd = FSVD(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors,
