@@ -17,7 +17,7 @@ n_epochs = 404
 n_factors = 90
 
 t = time.localtime()
-RESULT_DIR = f'../../data/benchmark_rs/test-saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 
 def get_rating(df, u, i):
