@@ -42,7 +42,7 @@ def generate_saturation(ratings, movies_available,  step, new_scores_tmp):
     res_tmp = pd.concat([movies_available_tmp, pd.DataFrame({"pred": preds})], axis=1)
     res_tmp.to_parquet(f"{RESULT_DIR}/predictions_step_{step}.parquet")
 
-    print(res_tmp)
+    # print(res_tmp)
 
     saturation = res_tmp.groupby("u_id").apply(
         lambda df: df.sort_values("pred")[-100:].drop(["u_id", "i_id", "pred"], axis=1).mean()).to_dict("index")
@@ -80,7 +80,7 @@ print("Prepare variables - DONE")
 
 saturation_list = []
 
-pool = Pool(25)
+pool = Pool(nodes=25)
 
 for i in tqdm(range(40)):
 # for i in tqdm(range(2)):
