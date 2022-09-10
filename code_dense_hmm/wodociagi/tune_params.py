@@ -200,7 +200,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
             {
                 "time": time.perf_counter() - hmm_monitor._init_time,
                 "logprob": densehmm.score(Y_true, lengths),
-                "dtv_omega":hmm_monitor.omega_dtv[-1]
+                "dtv_omega": list(hmm_monitor.omega_dtv)
             }
         )
 
@@ -221,7 +221,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
             {
                 "time": time.perf_counter() - hmm_monitor._init_time,
                 "logprob": hmm_model.score(Y_true, lengths),
-                "dtv_omega": hmm_monitor.omega_dtv[-1]
+                "dtv_omega": list(hmm_monitor.omega_dtv)
             }
         )
 
