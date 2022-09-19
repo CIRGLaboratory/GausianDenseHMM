@@ -82,6 +82,7 @@ saturation_list = []
 
 
 for i in tqdm(range(100)):
+    pool = Pool(nodes=10)
     genre_tmp = GENRE1 if i % 2 else GENRE2
     #  provide new scores for 25 iterations
     fsvd = FSVD(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors,
@@ -106,7 +107,6 @@ for i in tqdm(range(100)):
 
     movies_available.drop("pred", axis=1, inplace=True)
 
-    pool = Pool(nodes=10)
     saturation_list += pool.map(task, list(range(10)))
     pool.close()
 
