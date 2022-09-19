@@ -80,7 +80,6 @@ print("Prepare variables - DONE")
 
 saturation_list = []
 
-pool = Pool(nodes=10)
 
 for i in tqdm(range(100)):
     genre_tmp = GENRE1 if i % 2 else GENRE2
@@ -107,6 +106,7 @@ for i in tqdm(range(100)):
 
     movies_available.drop("pred", axis=1, inplace=True)
 
+    pool = Pool(nodes=10)
     saturation_list += pool.map(task, list(range(10)))
     pool.close()
 
