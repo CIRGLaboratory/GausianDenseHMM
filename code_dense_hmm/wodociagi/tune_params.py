@@ -211,7 +211,7 @@ def run_models(params, Y_true, lengths, no_rep, covar_type):
                                            epochs=0), scheduler=False)
 
         hmm_monitor = HMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=True,
-                                        wandb_log=True, wandb_params=wandb_params, true_vals=true_values,
+                                        wandb_log=True, wandb_params=wandb_params, true_vals=None,
                                         log_config={'metrics_after_convergence': True})
         hmm_model = hmm.GaussianHMM(n, n_iter=em_iter(n), covariance_type=covar_type)
         hmm_model.monitor_ = hmm_monitor
