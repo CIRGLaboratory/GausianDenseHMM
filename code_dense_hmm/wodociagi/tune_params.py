@@ -72,9 +72,9 @@ def prepare_data():
     df_main.loc[(df_main.V_delta.abs() > 1e+3), "V_delta"] = 0
     df_main = pd.concat([df_main.V_delta, df_main.mtime.dt.round("H")], axis=1).groupby("mtime").sum().reset_index()
 
-    seasonal_changes = df_main.V_delta.rolling(24 * 42, center=True, min_periods=2).mean().rolling(24 * 7, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month <= 2)]
+    seasonal_changes = df_main.V_delta.rolling(24 * 42, center=True, min_periods=2).mean().rolling(24 * 7, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 7)]
 
-    data = df_main.V_delta.rolling(24, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month <= 2)] - seasonal_changes
+    data = df_main.V_delta.rolling(24, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 7)] - seasonal_changes
     lengths = np.array([24 * 7 for _ in range(data.shape[0] // (24 * 7))] + [
         data.shape[0] - (data.shape[0] // (24 * 7)) * 24 * 7])
     return data.values.reshape(-1, 1), lengths
@@ -236,6 +236,8 @@ if __name__ == "__main__":
     n, no_reps, no_trials, l_fixed, covar_type = parse_args()
 
     Y_true, lengths = prepare_data()
+
+    print("Data shape: ", Y_true.shape)
 
     params = tune_hyperparams(Y_true, lengths, n, covar_type)
     run_models(params, Y_true, lengths, no_reps, covar_type)
