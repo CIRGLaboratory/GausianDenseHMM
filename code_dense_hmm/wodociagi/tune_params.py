@@ -86,7 +86,7 @@ def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
     else:
         l_param = int(l)
     cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .75)
-    cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 1000, 100000)
+    cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 1000, 1000000)
     lls = []
 
     def em_scheduler(max_lr, it):
@@ -97,8 +97,7 @@ def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
 
     # Check hyper-parameters
     for _ in range(no_rep):
-        hmm_monitor = DenseHMMLoggingMonitor(tol=TOLERANCE, n_iter=0,
-                              verbose=False, wandb_log=False)
+        hmm_monitor = DenseHMMLoggingMonitor(tol=TOLERANCE, n_iter=0, verbose=False, wandb_log=False)
 
         mstep_config = {'cooc_lr': cooc_lr_param, "l_uz": l_param, 'scheduler': em_scheduler,
                         'cooc_epochs': cooc_epochs_param, 'loss_type': 'square'}
@@ -114,12 +113,12 @@ def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
     return lls.mean()
 
 
-def tune_hyperparams(Y_true, lengths, n, covar_type):
+def tune_hyperparams(Y_true, lengths, n, covar_type, no_reps, no_trials):
     l = max(np.ceil(n / 3), 2) if l_fixed else None
     study = optuna.create_study(direction='maximize')
 
     study.optimize(
-        lambda trial: objective(trial, n, Y_true, lengths, covar_type, l=int(l), no_rep=no_trials),
+        lambda trial: objective(trial, n, Y_true, lengths, covar_type, l=int(l), no_rep=no_reps),
         n_trials=no_trials)
 
     with open(f"{RESULT_DIR}/optuna_cooc_n{n}_l{l_fixed}.pkl", "wb") as f:
@@ -239,5 +238,5 @@ if __name__ == "__main__":
 
     print("Data shape: ", Y_true.shape)
 
-    params = tune_hyperparams(Y_true, lengths, n, covar_type)
+    params = tune_hyperparams(Y_true, lengths, n, covar_type, no_reps, no_trials)
     run_models(params, Y_true, lengths, no_reps, covar_type)
