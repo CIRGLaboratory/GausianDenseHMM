@@ -108,7 +108,8 @@ for i in tqdm(range(40)):
 
     movies_available.drop("pred", axis=1, inplace=True)
 
-    saturation_list += pool.map(task, list(range(25)))
+    # saturation_list += pool.map(task, list(range(25)))
+    saturation_list += [task(j, new_scores, i) for j in range(25)]
 
     movies_available.loc[selected, 'rating'] = new_scores.rating.values
     ratings = pd.concat([ratings, new_scores], axis=0)
