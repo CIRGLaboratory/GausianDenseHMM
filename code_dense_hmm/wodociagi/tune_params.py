@@ -86,7 +86,7 @@ def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
     else:
         l_param = int(l)
     cooc_lr_param = trial.suggest_loguniform('cooc_lr_param', 1e-4, .75)
-    cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 1000, 1000000)
+    cooc_epochs_param = trial.suggest_int('cooc_epochs_param', 1000, 100000)
     lls = []
 
     def em_scheduler(max_lr, it):
