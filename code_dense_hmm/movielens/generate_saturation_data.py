@@ -80,10 +80,9 @@ print("Prepare variables - DONE")
 
 saturation_list = []
 
-pool = Pool(nodes=25)
+pool = Pool(nodes=40)
 
-for i in tqdm(range(40)):
-# for i in tqdm(range(2)):
+for i in tqdm(range(25)):
     genre_tmp = GENRE1 if i % 2 else GENRE2
     #  provide new scores for 25 iterations
     fsvd = FSVD(lr=lr, reg=reg, n_epochs=n_epochs, n_factors=n_factors,
@@ -94,7 +93,7 @@ for i in tqdm(range(40)):
     # calculate the saturation
     movies_available = pd.concat([movies_available, pd.DataFrame({"pred": preds})], axis=1)
 
-    selected = movies_available.loc[movies_available.i_id.isin(genres.index[genres[genre_tmp]]), :].groupby("u_id").apply(lambda df: pd.Series(np.random.choice(df.sort_values("pred")[-100:].index, 25, False))).melt().value
+    selected = movies_available.loc[movies_available.i_id.isin(genres.index[genres[genre_tmp]]), :].groupby("u_id").apply(lambda df: pd.Series(np.random.choice(df.sort_values("pred")[-100:].index, 40, False))).melt().value
     new_scores = pd.concat([movies_available.loc[selected, ["u_id", "i_id"]].reset_index(drop=True),
                             pd.DataFrame({"rating": np.random.choice([4, 5], selected.shape[0], p=[.15, .85])})],
                            axis=1)
@@ -102,13 +101,13 @@ for i in tqdm(range(40)):
     def task(j, new_scores=new_scores, i=i):
         new_scores_tmp = new_scores.groupby("u_id").apply(lambda df: df[:(j + 1)])
         # print(new_scores_tmp.shape)
-        saturation = generate_saturation(ratings, movies_available, i * 25 + j, new_scores_tmp)
+        saturation = generate_saturation(ratings, movies_available, i * 40 + j, new_scores_tmp)
         return saturation
 
 
     movies_available.drop("pred", axis=1, inplace=True)
 
-    saturation_list += pool.map(task, list(range(25)))
+    saturation_list += pool.map(task, list(range(40)))
     pool.close()
 
     movies_available.loc[selected, 'rating'] = new_scores.rating.values
