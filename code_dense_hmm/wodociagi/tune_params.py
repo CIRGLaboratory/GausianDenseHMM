@@ -70,11 +70,13 @@ def prepare_data():
     df_main = df_main.ffill()
     df_main["V_delta"] = np.array([0] + (df_main.V1[1:].values - df_main.V1[:-1].values).tolist())
     df_main.loc[(df_main.V_delta.abs() > 1e+3), "V_delta"] = 0
-    seasonal_changes = df_main.V_delta.rolling(6 * 24 * 42, center=True, min_periods=2).mean().rolling(6 * 24 * 7, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month <= 2)]
+    df_main = pd.concat([df_main.V_delta, df_main.mtime.dt.round("H")], axis=1).groupby("mtime").sum().reset_index()
 
-    data = df_main.V_delta.rolling(24 * 6, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month <= 2)] - seasonal_changes
-    lengths = np.array([24 * 7 * 6 for _ in range(data.shape[0] // (24 * 7 * 6))] + [
-        data.shape[0] - (data.shape[0] // (24 * 7 * 6)) * 24 * 7 * 6])
+    seasonal_changes = df_main.V_delta.rolling(24 * 42, center=True, min_periods=2).mean().rolling(24 * 7, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month <= 2)]
+
+    data = df_main.V_delta.rolling(24, center=True, min_periods=2).mean()[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month <= 2)] - seasonal_changes
+    lengths = np.array([24 * 7 for _ in range(data.shape[0] // (24 * 7))] + [
+        data.shape[0] - (data.shape[0] // (24 * 7)) * 24 * 7])
     return data.values.reshape(-1, 1), lengths
 
 def objective(trial, n, Y_true, lengths, covar_type, l=None, no_rep=8):
