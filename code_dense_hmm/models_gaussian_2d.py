@@ -181,7 +181,7 @@ class DenseHMMLoggingMonitor(HMMLoggingMonitor):
         # XXX we might want to check that ``log_prob`` is non-decreasing.
         return (self.iter == self.n_iter or
                 (len(self.omega_dtv) >= 2 and
-                 self.omega_dtv[-2] - self.omega_dtv[-1] < self.tol))
+                 list(self.omega_dtv)[-2] - list(self.omega_dtv)[-1] < self.tol))
 
 
 class GammaGaussianHMM(GaussianHMM):
@@ -842,7 +842,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 if self.covariance_type == "full":
                     covars_vec = tf.get_variable(name="covars_cooc", dtype=tf.float64,
                                                   shape=[self.n_components, (self.n_features * (self.n_features + 1)) // 2],
-                                                  initializer=tf.initializers.constant(self.means_),
+                                                  initializer=tf.initializers.constant(np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2))),
                                                   trainable=('c' in self.trainables))
                     L = tfp.math.fill_triangular(covars_vec, name="L")
                     covars_cooc = tf.matmul(L, tf.transpose(L, [0, 2, 1]), name="covars_direct")
@@ -852,7 +852,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 elif self.covariance_type == "diag":
                     covars_vec = tf.get_variable(name="covars_cooc", dtype=tf.float64,
                                                  shape=[self.n_components, self.n_features],
-                                                 initializer=tf.initializers.constant(self.means_),
+                                                 initializer=tf.initializers.constant(np.ones((self.n_components, self.n_features))),
                                                  trainable=('c' in self.trainables))
                     covars_cooc = tf.matrix_diag(covars_vec)
                     self.covars_cooc = covars_vec
@@ -885,6 +885,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
                     raise Exception("Co-occurrences for dimensionality >=  3  not implemented.")
 
                 self.penalty = tf.identity(np.float64(0), name="penalty")
+                # self.penalty = tf.math.sigmoid(
+                #     (tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components,
+                #     name="penalty")
                 self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega, self.lr_cooc_placeholder = self._build_tf_coocs_graph(
                     A_from_reps_hmmlearn, B_scalars, self.omega_gt_ph, self.penalty)
 
