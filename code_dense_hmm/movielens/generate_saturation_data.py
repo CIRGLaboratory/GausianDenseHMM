@@ -55,13 +55,13 @@ def provide_ratings(train, test):
     return preds
 
 
-def provide_all_available(scores, user):
+def provide_all_available(scores, user, genre_id):
     items = scores.i_id.drop_duplicates()
     all = pd.merge(pd.DataFrame([(u, i) for i, u in itertools.product(items, user)], columns=["u_id", "i_id"]),
-                   ratings.drop('timestamp', axis=1),
+                   scores.drop('timestamp', axis=1),
                    how='left', on=['u_id', 'i_id'])
     all_available = all.loc[all.rating.isna(), :].drop('rating', axis=1)
-    return all_available
+    return pd.merge(all_available, genres_id, how='left', on='i_id')
 
 
 def sample_new_scores(available, genre, sample_size):
@@ -99,14 +99,16 @@ if __name__ == "__main__":
     Path(RESULT_DIR).mkdir(exist_ok=True, parents=True)
     ratings, movies, genres = provide_data()
     users = select_users(ratings)
+    genres_id = genres.reset_index().rename(columns={'index': 'i_id'})
 
     saturation_list = []
 
     for i in range(100):
         # Provide new scores
-        all_available = provide_all_available(ratings, users)
+        all_available = provide_all_available(ratings, users, genres_id)
         all_available['preds'] = provide_ratings(ratings, all_available)
         new_scores = sample_new_scores(all_available, genres, no_cores)
+        all_available.drop('pred', axis=1, inplace=True)
 
         with Pool(nodes=no_cores) as pool:
             saturation_list += pool.map(generate_saturation,
