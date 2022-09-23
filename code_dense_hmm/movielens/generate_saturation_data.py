@@ -69,10 +69,10 @@ def sample_new_scores(available, genre, sample_size):
                                     genres.reset_index().rename(columns={'index': 'i_id'}),
                                     how="left", on="i_id")
     available_genres = available_all_genres.loc[available_all_genres[GENRE1] | available_all_genres[GENRE2],
-                                                ['u_id', 'i_id', 'preds']]
+                                                ['u_id', 'i_id', 'pred']]
     new_scores = available_genres.groupby('u_id').apply(
         lambda df: pd.DataFrame(
-            {'i_id': np.random.choice(df.sort_values('preds').i_id.values[-100:], sample_size, replace=False),
+            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-100:], sample_size, replace=False),
              'rating': np.random.choice(np.array([4, 5]), sample_size, p=np.array([.15, .85]))})
     ).reset_index().drop('level_1', axis=1)
     return new_scores
