@@ -106,7 +106,7 @@ if __name__ == "__main__":
     for i in range(100):
         # Provide new scores
         all_available = provide_all_available(ratings, users, genres_id)
-        all_available['preds'] = provide_ratings(ratings, all_available)
+        all_available['pred'] = provide_ratings(ratings, all_available)
         new_scores = sample_new_scores(all_available, genres, no_cores)
         all_available.drop('pred', axis=1, inplace=True)
         all_available = pd.merge(all_available, genres_id, how='left', on='i_id')
