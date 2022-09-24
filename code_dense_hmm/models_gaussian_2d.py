@@ -124,7 +124,11 @@ class HMMLoggingMonitor(ConvergenceMonitor):
         self.u.append(u)
         self.loss.append(loss)
 
-        omega_diff = None
+        if (learned_omega is not None) & (omega_gt is not None):
+            omega_diff = dtv(learned_omega, omega_gt)
+        else:
+            omega_diff = None
+        self.omega_dtv.append(omega_diff)
         if self.wandb_log:
             acc = None
             transmat_dtv = None
@@ -132,8 +136,7 @@ class HMMLoggingMonitor(ConvergenceMonitor):
             means_mae = None
             covars_mae = None
             # provide metrics
-            if (learned_omega is not None) & (omega_gt is not None):
-                omega_diff = dtv(learned_omega, omega_gt)
+
             if (self.true_states is None) | (preds is None):
                 self.run.log({
                     "total_log_prob": log_prob,
@@ -158,16 +161,16 @@ class HMMLoggingMonitor(ConvergenceMonitor):
                 covars_mae = (abs(self.true_covars[perm] - covars)).mean() if (covars is not None) & (
                             self.true_covars is not None) else None
 
-            self.run.log({
-                "total_log_prob": log_prob,
-                "accuracy": acc,
-                "time": time.perf_counter() - self._init_time,
-                "transmat_dtv": transmat_dtv,
-                "startprob_dtv": startprob_dtv,
-                "means_mae": means_mae,
-                "covars_mae": covars_mae,
-                "omage_dtv": omega_diff
-            })
+                self.run.log({
+                    "total_log_prob": log_prob,
+                    "accuracy": acc,
+                    "time": time.perf_counter() - self._init_time,
+                    "transmat_dtv": transmat_dtv,
+                    "startprob_dtv": startprob_dtv,
+                    "means_mae": means_mae,
+                    "covars_mae": covars_mae,
+                    "omage_dtv": omega_diff
+                })
             self.accuracy.append(acc)
 
 
@@ -178,7 +181,7 @@ class DenseHMMLoggingMonitor(HMMLoggingMonitor):
         # XXX we might want to check that ``log_prob`` is non-decreasing.
         return (self.iter == self.n_iter or
                 (len(self.omega_dtv) >= 2 and
-                 self.omega_dtv[-2] - self.omega_dtv[-1] < self.tol))
+                 list(self.omega_dtv)[-2] - list(self.omega_dtv)[-1] < self.tol))
 
 
 class GammaGaussianHMM(GaussianHMM):
@@ -839,7 +842,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 if self.covariance_type == "full":
                     covars_vec = tf.get_variable(name="covars_cooc", dtype=tf.float64,
                                                   shape=[self.n_components, (self.n_features * (self.n_features + 1)) // 2],
-                                                  initializer=tf.initializers.constant(self.means_),
+                                                  initializer=tf.initializers.constant(np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2))),
                                                   trainable=('c' in self.trainables))
                     L = tfp.math.fill_triangular(covars_vec, name="L")
                     covars_cooc = tf.matmul(L, tf.transpose(L, [0, 2, 1]), name="covars_direct")
@@ -849,7 +852,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 elif self.covariance_type == "diag":
                     covars_vec = tf.get_variable(name="covars_cooc", dtype=tf.float64,
                                                  shape=[self.n_components, self.n_features],
-                                                 initializer=tf.initializers.constant(self.means_),
+                                                 initializer=tf.initializers.constant(np.ones((self.n_components, self.n_features))),
                                                  trainable=('c' in self.trainables))
                     covars_cooc = tf.matrix_diag(covars_vec)
                     self.covars_cooc = covars_vec
@@ -882,6 +885,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
                     raise Exception("Co-occurrences for dimensionality >=  3  not implemented.")
 
                 self.penalty = tf.identity(np.float64(0), name="penalty")
+                # self.penalty = tf.math.sigmoid(
+                #     (tf.reduce_sum(covars_cooc / X.std()) + tf.math.reduce_std(covars_cooc)) / self.n_components,
+                #     name="penalty")
                 self.loss_cooc, self.loss_cooc_update, self.A_stationary, self.omega, self.lr_cooc_placeholder = self._build_tf_coocs_graph(
                     A_from_reps_hmmlearn, B_scalars, self.omega_gt_ph, self.penalty)
 
