@@ -80,8 +80,8 @@ def sample_new_scores(available, genre, sample_size):
 
 def generate_saturation(args):
     rats, new_s, all_avail, step, iter = args
-    new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :]).reset_index()
-    ratings_tmp = pd.concat([rats, new_scores_tmp])
+    new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :]).reset_index(drop=True)
+    ratings_tmp = pd.concat([rats, new_scores_tmp], axis=0)
     all_available_tmp = all_avail.loc[~(all_avail.u_id.isin(new_scores_tmp.u_id) & all_avail.i_id.isin(new_scores_tmp.i_id)), :]
 
     preds = provide_ratings(ratings_tmp, all_available_tmp)
