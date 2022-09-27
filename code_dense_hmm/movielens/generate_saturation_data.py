@@ -65,8 +65,8 @@ def provide_all_available(scores, user, genre_id):
 
 
 def sample_new_scores(available, genre, sample_size):
-    available_all_genres = pd.merge(all_available,
-                                    genres.reset_index().rename(columns={'index': 'i_id'}),
+    available_all_genres = pd.merge(available,
+                                    genre.reset_index().rename(columns={'index': 'i_id'}),
                                     how="left", on="i_id")
     available_genres = available_all_genres.loc[available_all_genres[GENRE1] | available_all_genres[GENRE2],
                                                 ['u_id', 'i_id', 'pred']]
@@ -80,7 +80,7 @@ def sample_new_scores(available, genre, sample_size):
 
 def generate_saturation(args):
     rats, new_s, all_avail, step, iter = args
-    new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :])
+    new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :]).reset_index()
     ratings_tmp = pd.concat([rats, new_scores_tmp])
     all_available_tmp = all_avail.loc[~(all_avail.u_id.isin(new_scores_tmp.u_id) & all_avail.i_id.isin(new_scores_tmp.i_id)), :]
 
