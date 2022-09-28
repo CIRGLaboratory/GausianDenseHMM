@@ -1,3 +1,6 @@
+import collections
+import pickle
+
 import pandas as pd
 import numpy as np
 import time
@@ -356,37 +359,34 @@ if __name__ == "__main__":
     Y_true, lengths, Y_test, lengths_test, target, target_test, target_w, target_w_test = provide_data()
     wandb_params, mstep_cofig, true_values = provide_logs()
 
-    overall_result = {
-        "data": {
-            "Y_true": Y_true.tolist(),
-            "lengths": lengths.tolist(),
-            "Y_test": Y_test.tolist(),
-            "lengths_test": lengths_test.tolist(),
-            "target": target.tolist(),
-            "target_test": target_test.tolist(),
-            "target_w": target_w.tolist(),
-            "target_w_test": target_w_test.tolist()
-        },
-        "models": dict(),
-        "cluster_daily": dict(),
-        "cluster_weekly": dict(),
-        "classify_working": dict(),
-        "classify_weekday": dict()
+    overall_result = collections.defaultdict(dict)
+    overall_result["data"] = {
+        "Y_true": Y_true.tolist(),
+        "lengths": lengths.tolist(),
+        "Y_test": Y_test.tolist(),
+        "lengths_test": lengths_test.tolist(),
+        "target": target.tolist(),
+        "target_test": target_test.tolist(),
+        "target_w": target_w.tolist(),
+        "target_w_test": target_w_test.tolist()
     }
 
     for eta in lr:
         for n_, l_ in zip(n, l):
-            for run in range(50):
+            for run in range(10):
                 densehmm, states, states_test, loss, score, model_log, model_log2 = build_model(eta, n_, l_, Y_true, lengths, Y_test, lengths_test, wandb_params, mstep_cofig, true_values)
-                overall_result["models"][f"eta{eta}_n{n_}_l{l_}_run{run}"] = {"states_train": states.tolist(),
+                overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["models"] = {"states_train": states.tolist(),
                                                                               "states_test": states_test.tolist(),
                                                                               "loss": loss,
                                                                               "score": score,
                                                                               "model_log": model_log2}
-                overall_result["cluster_daily"][f"eta{eta}_n{n_}_l{l_}_run{run}"] = [cluster_daily(model_log) for _ in range(10)]
-                overall_result["cluster_weekly"][f"eta{eta}_n{n_}_l{l_}_run{run}"] = [cluster_weekly(model_log, Y_true, Y_test, states, states_test, target, target_test) for _ in range(10)]
-                overall_result["classify_working"][f"eta{eta}_n{n_}_l{l_}_run{run}"] = {k_: [classify_working(k_, model_log, Y_true, Y_test, states, states_test, target, target_test) for _ in range(10)] for k_ in k}
-                overall_result["classify_weekday"][f"eta{eta}_n{n_}_l{l_}_run{run}"] = {k_: [classify_weekday(k_, model_log, Y_true, Y_test, states, states_test, target_w, target_w_test) for _ in range(10)] for k_ in k}
+                overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["cluster_daily"] = [cluster_daily(model_log) for _ in range(10)]
+                overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["cluster_weekly"] = [cluster_weekly(model_log, Y_true, Y_test, states, states_test, target, target_test) for _ in range(10)]
+                overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["classify_working"] = {k_: [classify_working(k_, model_log, Y_true, Y_test, states, states_test, target, target_test) for _ in range(10)] for k_ in k}
+                overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["classify_weekday"] = {k_: [classify_weekday(k_, model_log, Y_true, Y_test, states, states_test, target_w, target_w_test) for _ in range(10)] for k_ in k}
 
-                with open("overall_result.json", "w") as f:
-                    json.dump(overall_result, f, indent=4)
+            with open(f"overall_result_eta{eta}_n{n_}_l{l_}.json", "w") as f:
+                json.dump(overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"], f, indent=4)
+
+    with open(f"overall_result.pkl", "wb") as f:
+        pickle.dump(overall_result, f)
