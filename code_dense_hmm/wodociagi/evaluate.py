@@ -416,8 +416,8 @@ if __name__ == "__main__":
                 overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["classify_working"] = {k_: [classify_working(k_, model_log, Y_true, Y_test, states, states_test, target, target_test) for _ in range(10)] for k_ in k}
                 overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"]["classify_weekday"] = {k_: [classify_weekday(k_, model_log, Y_true, Y_test, states, states_test, target_w, target_w_test) for _ in range(10)] for k_ in k}
 
-            with open(f"overall_result_eta{eta}_n{n_}_l{l_}.json", "w") as f:
+            with open(f"overall_result_eta{eta}_n{n_}_l{l_}_2d.json", "w") as f:
                 json.dump(overall_result[f"eta{eta}_n{n_}_l{l_}_run{run}"], f, indent=4)
 
-    with open(f"overall_result.pkl", "wb") as f:
+    with open(f"overall_result_2d.pkl", "wb") as f:
         pickle.dump(overall_result, f)
