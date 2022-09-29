@@ -21,7 +21,7 @@ t = time.localtime()
 RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
 
 np.random.seed(2022)
-no_cores = 1
+no_cores = 10
 
 
 def select_users(ratings):
