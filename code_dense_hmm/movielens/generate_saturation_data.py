@@ -12,10 +12,10 @@ from pathos.multiprocessing import ProcessingPool as Pool
 GENRE1 = "Action"
 GENRE2 = "Romance"
 
-lr = 0.01  # 0.001942951202698156
-reg = 0.05  # 0.051518838687760575
-n_epochs = 100  # 404
-n_factors = 90
+lr = 0.003308564402831481
+reg = 0.04670255240414368
+n_epochs = 83
+n_factors = 81
 
 t = time.localtime()
 RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
