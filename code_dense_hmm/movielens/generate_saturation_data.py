@@ -18,7 +18,7 @@ n_epochs = 83
 n_factors = 81
 
 t = time.localtime()
-RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-v2'
 
 np.random.seed(2022)
 no_cores = 10
