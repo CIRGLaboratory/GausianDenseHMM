@@ -67,7 +67,7 @@ def provide_all_available(scores, user):  # OK
 def sample_new_scores(available, genre, sample_size, g):  # OK
     available_all_genres = pd.merge(available,
                                     genre.loc[genre.sum(axis=1) < 3, :].reset_index().rename(columns={'index': 'i_id'}),
-                                    how="left", on="i_id")
+                                    how="left", on="i_id").fillna(False)
     available_genres = available_all_genres.loc[available_all_genres[g], ['u_id', 'i_id', 'pred']]
     new_scores = available_genres.groupby('u_id').apply(
         lambda df: pd.DataFrame(
