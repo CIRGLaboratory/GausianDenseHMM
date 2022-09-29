@@ -13,17 +13,16 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score
 from models_gaussian_2d import *
 
 
-n = [4, 6, 10]
-l = [2, 3, 4]
+n = [4, 6, 10, 20]
+l = [2, 3, 4, 7]
 lr = [0.01, 0.05, 0.10, 0.20]
-lr = [0.05, 0.10, 0.20]
 k = [3, 5, 13, 20]
 TOLERANCE = 1e-4
 
 interval = 24 * 7 * 6
 t = time.localtime()
 month_len = np.cumsum([0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31])
-time_range_d = pd.date_range("00:00:00", "23:50:00", 24*6)
+time_range_d = pd.date_range("00:00:00", "23:50:00", 24 * 6)
 weekdays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "holiday"]
 
 
@@ -32,10 +31,11 @@ def provide_data():
     df_main.columns = ['mtime', 'P1', 'V1', 'Q1']
     df_main = df_main.ffill()
     df_main["V_delta"] = (np.array([0] + (df_main.V1[1:].values - df_main.V1[:-1].values).tolist()))
-    df_main.loc[(df_main.V_delta.abs() > 50), "V_delta"] = 50 # df_main.loc[(df_main.V_delta.abs() < 50), "V_delta"].mean()
+    df_main.loc[(df_main.V_delta.abs() > 50), "V_delta"] = 30  # df_main.loc[(df_main.V_delta.abs() < 50), "V_delta"].mean()
     df_main["V_delta"] = df_main["V_delta"].rolling(6, center=True, min_periods=2).mean()
 
-    time_range = pd.DataFrame({"mtime":pd.date_range(df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.min(), df_main.loc[(df_main.mtime.dt.year == 2019), :].mtime.max(), 24*6*(365+365))})
+    time_range = pd.DataFrame({"mtime": pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2018) & (df_main.mtime.dt.month == 3), :].mtime.min(),
+                                                      df_main.loc[(df_main.mtime.dt.year == 2020) & (df_main.mtime.dt.month == 2) & (df_main.mtime.dt.day == 28), :].mtime.max(), 24*6*(365+365))})
     df_main = pd.merge(time_range, df_main, on="mtime", how="left")
     df_main["V_delta"] = (df_main["V_delta"].bfill().ffill() + df_main["V_delta"].ffill().bfill()) / 2
 
@@ -48,8 +48,8 @@ def provide_data():
     data = df_main.loc[:, ['V_delta', 'V_delta_der']]
     data.V_delta = data.V_delta - seasonal_changes
 
-    data_train = data[(df_main.mtime.dt.year == 2018)]
-    data_test  = data[(df_main.mtime.dt.year == 2019)]
+    data_train = data[df_main.mtime < df_main.loc[((df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 3)), 'mtime'].min()]
+    data_test = data[df_main.mtime >= df_main.loc[((df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 3)), 'mtime'].min()]
 
     lengths = np.array([interval for _ in range(data_train.shape[0] // (interval))] + [
         data_train.shape[0] - (data_train.shape[0] // (interval)) * interval])
@@ -59,21 +59,21 @@ def provide_data():
         data_test.shape[0] - (data_test.shape[0] // (interval)) * interval])
     Y_test = data_test.values.reshape(-1, 2)
 
-    target = pd.Series(pd.date_range(df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.dt.floor('d').min(),
-                                     df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.dt.floor('d').max(),
+    target = pd.Series(pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2018) & (df_main.mtime.dt.month == 3), :].mtime.dt.floor('d').min(),
+                                     df_main.loc[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 2), :].mtime.dt.floor('d').max(),
                                      365)).apply(lambda d: (d in holidays.PL()) | (d.weekday() > 4))
 
-    target_test = pd.Series(pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2019), :].mtime.dt.floor('d').min(),
-                                          df_main.loc[(df_main.mtime.dt.year == 2019), :].mtime.dt.floor('d').max(),
+    target_test = pd.Series(pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 3), :].mtime.dt.floor('d').min(),
+                                          df_main.loc[(df_main.mtime.dt.year == 2020) & (df_main.mtime.dt.month == 2) & (df_main.mtime.dt.day == 28), :].mtime.dt.floor('d').max(),
                                           365)).apply(lambda d: (d in holidays.PL()) | (d.weekday() > 4))
 
-    target_w = pd.Series(pd.date_range(df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.dt.floor('d').min(),
-                                       df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.dt.floor('d').max(),
+    target_w = pd.Series(pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2018) & (df_main.mtime.dt.month == 3), :].mtime.dt.floor('d').min(),
+                                       df_main.loc[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 2), :].mtime.dt.floor('d').max(),
                                        365)).apply(
         lambda d: 7 if d in holidays.PL() else d.weekday())
 
-    target_w_test = pd.Series(pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2019), :].mtime.dt.floor('d').min(),
-                                            df_main.loc[(df_main.mtime.dt.year == 2019), :].mtime.dt.floor('d').max(),
+    target_w_test = pd.Series(pd.date_range(df_main.loc[(df_main.mtime.dt.year == 2019) & (df_main.mtime.dt.month == 3), :].mtime.dt.floor('d').min(),
+                                            df_main.loc[(df_main.mtime.dt.year == 2020) & (df_main.mtime.dt.month == 2) & (df_main.mtime.dt.day == 28), :].mtime.dt.floor('d').max(),
                                             365)).apply(
         lambda d: 7 if d in holidays.PL() else d.weekday())
 
@@ -211,7 +211,7 @@ def cluster_daily(model_log):
 
     for c1 in range(24*6):
         for c2 in range(c1+1, 24*6):
-            acc_tmp =  ((daily_bin[:, :c1] == 0).sum() + (daily_bin[:, c1:c2] == 1).sum() + (daily_bin[:, c2:] == 0).sum()) / (365 * 24 * 6)
+            acc_tmp = ((daily_bin[:, :c1] == 0).sum() + (daily_bin[:, c1:c2] == 1).sum() + (daily_bin[:, c2:] == 0).sum()) / (365 * 24 * 6)
             if acc_tmp > acc_final:
                 acc_final = acc_tmp
                 acc_test = ((daily_bin_test[:, :c1] == 0).sum() + (daily_bin_test[:, c1:c2] == 1).sum() + (daily_bin_test[:, c2:] == 0).sum()) / (365 * 24 * 6)
@@ -232,10 +232,12 @@ def cluster_weekly(model_log, Y_true, Y_test, states, states_test, target, targe
     u_fin, z_fin, z0_fin = model_log['u'], model_log['z'], model_log['z0']
     n_ = model_log["n"]
     uz_fin = np.concatenate([u_fin, np.transpose(z_fin)], axis=1)
+    uz_rand = np.random.normal(0, 1, uz_fin.shape)
 
     kmeans_Y = KMeans(n_clusters=2).fit(Y_true.reshape(-1, 24*6*2))
     kmeans_s = KMeans(n_clusters=2).fit(np.identity(n_)[states].reshape((365, -1)))
     kmeans_e = KMeans(n_clusters=2).fit(uz_fin[states.reshape(-1), :].reshape((365, -1)))
+    kmeans_r = KMeans(n_clusters=2).fit(uz_rand[states.reshape(-1), :].reshape((365, -1)))
 
     result = {
         "water_demand": {
@@ -249,6 +251,10 @@ def cluster_weekly(model_log, Y_true, Y_test, states, states_test, target, targe
         "embedding": {
             "train_ACC": acc_perm((kmeans_e.labels_ == target).mean()),
             "test_ACC": acc_perm((kmeans_e.predict(uz_fin[states_test.reshape(-1), :].reshape((365, -1))) == target_test).mean()),
+        },
+        "random_emb": {
+            "train_ACC": acc_perm((kmeans_r.labels_ == target).mean()),
+            "test_ACC": acc_perm((kmeans_r.predict(uz_rand[states_test.reshape(-1), :].reshape((365, -1))) == target_test).mean()),
         }
     }
 
@@ -275,10 +281,12 @@ def classify_working(k, model_log, Y_true, Y_test, states, states_test, target, 
     u_fin, z_fin, z0_fin = model_log['u'], model_log['z'], model_log['z0']
     n_ = model_log["n"]
     uz_fin = np.concatenate([u_fin, np.transpose(z_fin)], axis=1)
+    uz_rand = np.random.normal(0, 1, uz_fin.shape)
 
     knn_Y = KNeighborsClassifier(n_neighbors=k).fit(Y_true.reshape(-1, 24 * 6 * 2), target)
     knn_s = KNeighborsClassifier(n_neighbors=k).fit(np.identity(n_)[states].reshape((365, -1)), target)
     knn_e = KNeighborsClassifier(n_neighbors=k).fit(uz_fin[states.reshape(-1), :].reshape((365, -1)), target)
+    knn_r = KNeighborsClassifier(n_neighbors=k).fit(uz_rand[states.reshape(-1), :].reshape((365, -1)), target)
 
     knn_preds_Y = knn_Y.predict(Y_true.reshape(-1, 24 * 6 * 2))
     knn_preds_Y_test = knn_Y.predict(Y_test.reshape(-1, 24 * 6 * 2))
@@ -289,10 +297,14 @@ def classify_working(k, model_log, Y_true, Y_test, states, states_test, target, 
     knn_preds_e = knn_e.predict(uz_fin[states.reshape(-1), :].reshape((365, -1)))
     knn_preds_e_test = knn_e.predict(uz_fin[states_test.reshape(-1), :].reshape((365, -1)))
 
+    knn_preds_r = knn_r.predict(uz_rand[states.reshape(-1), :].reshape((365, -1)))
+    knn_preds_r_test = knn_r.predict(uz_rand[states_test.reshape(-1), :].reshape((365, -1)))
+
     result = {
         "water_demand": present_weekday(knn_preds_Y, knn_preds_Y_test, target, target_test),
         "state_IDs": present_weekday(knn_preds_s, knn_preds_s_test, target, target_test),
-        "embedding": present_weekday(knn_preds_e, knn_preds_e_test, target, target_test)
+        "embedding": present_weekday(knn_preds_e, knn_preds_e_test, target, target_test),
+        "random_emb": present_weekday(knn_preds_r, knn_preds_r_test, target, target_test)
     }
     return result
 
@@ -301,10 +313,12 @@ def classify_weekday(k, model_log, Y_true, Y_test, states, states_test, target_w
     u_fin, z_fin, z0_fin = model_log['u'], model_log['z'], model_log['z0']
     n_ = model_log["n"]
     uz_fin = np.concatenate([u_fin, np.transpose(z_fin)], axis=1)
+    uz_rand = np.random.normal(0, 1, uz_fin.shape)
 
     knn_Y = KNeighborsClassifier(n_neighbors=k).fit(Y_true.reshape(-1, 24 * 6 * 2), target_w)
     knn_s = KNeighborsClassifier(n_neighbors=k).fit(np.identity(n_)[states].reshape((365, -1)), target_w)
     knn_e = KNeighborsClassifier(n_neighbors=k).fit(uz_fin[states.reshape(-1), :].reshape((365, -1)), target_w)
+    knn_r = KNeighborsClassifier(n_neighbors=k).fit(uz_rand[states.reshape(-1), :].reshape((365, -1)), target_w)
 
     knn_preds_Y = knn_Y.predict(Y_true.reshape(-1, 24 * 6 * 2))
     knn_preds_Y_test = knn_Y.predict(Y_test.reshape(-1, 24 * 6 * 2))
@@ -314,6 +328,9 @@ def classify_weekday(k, model_log, Y_true, Y_test, states, states_test, target_w
 
     knn_preds_e = knn_e.predict(uz_fin[states.reshape(-1), :].reshape((365, -1)))
     knn_preds_e_test = knn_e.predict(uz_fin[states_test.reshape(-1), :].reshape((365, -1)))
+
+    knn_preds_r = knn_r.predict(uz_rand[states.reshape(-1), :].reshape((365, -1)))
+    knn_preds_r_test = knn_r.predict(uz_rand[states_test.reshape(-1), :].reshape((365, -1)))
 
     result = {
         "water_demand": {
@@ -351,6 +368,19 @@ def classify_weekday(k, model_log, Y_true, Y_test, states, states_test, target_w
             "test_CONFMAT": confusion_matrix(target_w_test, knn_preds_e_test).tolist(),
             **{weekdays[i]: present_weekday(knn_preds_e == i, knn_preds_e_test == i, target_w == i, target_w_test == i) for i in range(8)},
             "working_day": present_weekday(knn_preds_e < 5, knn_preds_e_test < 5, target_w < 5, target_w_test < 5)
+        },
+        "random_emb": {
+            "train_ACC": (knn_preds_r == target_w).mean(),
+            "test_ACC": (knn_preds_r_test == target_w_test).mean(),
+            "train_MONTH_ACC": [(knn_preds_r == target_w)[month_len[i - 1]:month_len[i]].mean() for i in
+                                range(1, month_len.shape[0])],
+            "test_MONTH_ACC": [(knn_preds_r_test == target_w_test)[month_len[i - 1]:month_len[i]].mean() for i in
+                               range(1, month_len.shape[0])],
+            "train_CONFMAT": confusion_matrix(target_w, knn_preds_r).tolist(),
+            "test_CONFMAT": confusion_matrix(target_w_test, knn_preds_r_test).tolist(),
+            **{weekdays[i]: present_weekday(knn_preds_r == i, knn_preds_r_test == i, target_w == i, target_w_test == i)
+               for i in range(8)},
+            "working_day": present_weekday(knn_preds_r < 5, knn_preds_r_test < 5, target_w < 5, target_w_test < 5)
         }
     }
     return result
