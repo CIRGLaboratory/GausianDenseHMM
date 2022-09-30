@@ -12,13 +12,13 @@ from pathos.multiprocessing import ProcessingPool as Pool
 GENRE1 = "Action"
 GENRE2 = "Romance"
 
-lr = 0.001942951202698156
-reg = 0.051518838687760575
-n_epochs = 404
-n_factors = 90
+lr = 0.003308564402831481
+reg = 0.04670255240414368
+n_epochs = 83
+n_factors = 81
 
 t = time.localtime()
-RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}'
+RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-v2'
 
 np.random.seed(2022)
 no_cores = 10
@@ -55,7 +55,7 @@ def provide_ratings(train, test):
     return preds
 
 
-def provide_all_available(scores, user, genre_id):
+def provide_all_available(scores, user):  # OK
     items = scores.i_id.drop_duplicates()
     all = pd.merge(pd.DataFrame([(u, i) for i, u in itertools.product(items, user)], columns=["u_id", "i_id"]),
                    scores.drop('timestamp', axis=1),
@@ -64,29 +64,42 @@ def provide_all_available(scores, user, genre_id):
     return all_available
 
 
-def sample_new_scores(available, genre, sample_size):
-    available_all_genres = pd.merge(all_available,
-                                    genres.reset_index().rename(columns={'index': 'i_id'}),
-                                    how="left", on="i_id")
-    available_genres = available_all_genres.loc[available_all_genres[GENRE1] | available_all_genres[GENRE2],
-                                                ['u_id', 'i_id', 'pred']]
+def sample_new_scores(available, genre, sample_size, g):  # OK
+    available_all_genres = pd.merge(available,
+                                    genre.loc[genre.sum(axis=1) < 3, :].reset_index().rename(columns={'index': 'i_id'}),
+                                    how="left", on="i_id").fillna(False)
+    available_genres = available_all_genres.loc[available_all_genres[g], ['u_id', 'i_id', 'pred']]
     new_scores = available_genres.groupby('u_id').apply(
         lambda df: pd.DataFrame(
-            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-100:], sample_size, replace=False),
-             'rating': np.random.choice(np.array([4, 5]), sample_size, p=np.array([.15, .85]))})
+            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], sample_size, replace=False),
+             'rating': [5 for _ in range(sample_size)]})
     ).reset_index().drop('level_1', axis=1)
-    return new_scores
+
+    available_all_genres_bad = pd.merge(available,
+                                    genre.reset_index().rename(columns={'index': 'i_id'}),
+                                    how="left", on="i_id")
+    available_genres_bad = available_all_genres_bad.loc[(~available_all_genres_bad[GENRE1]) & (~available_all_genres_bad[GENRE2]), ['u_id', 'i_id', 'pred']]
+    new_scores_bad = available_genres_bad.groupby('u_id').apply(
+        lambda df: pd.DataFrame(
+            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], 2,
+                                      replace=False),
+             'rating': np.random.choice([1, 2, 3], size=2, replace=True)})
+    ).reset_index().drop('level_1', axis=1)
+    return pd.concat([new_scores, new_scores_bad]).sample(frac=1, ignore_index=True, axis=0)
 
 
 def generate_saturation(args):
     rats, new_s, all_avail, step, iter = args
-    new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :])
-    ratings_tmp = pd.concat([rats, new_scores_tmp])
-    all_available_tmp = all_avail.loc[~(all_avail.u_id.isin(new_scores_tmp.u_id) & all_avail.i_id.isin(new_scores_tmp.i_id)), :]
+    new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :]).reset_index(drop=True)
+    ratings_tmp = pd.concat([rats, new_scores_tmp], axis=0)
+    all = pd.merge(all_avail,
+                   ratings_tmp.drop('timestamp', axis=1),
+                   how='left', on=['u_id', 'i_id'])
+    all_available_tmp = all.loc[all.rating.isna(), :].drop('rating', axis=1)
 
     preds = provide_ratings(ratings_tmp, all_available_tmp)
 
-    res_tmp = pd.concat([all_available_tmp, pd.DataFrame({"pred": preds})], axis=1)
+    res_tmp = pd.concat([all_available_tmp.reset_index(drop=True), pd.DataFrame({"pred": preds})], axis=1)
     res_tmp.to_parquet(f"{RESULT_DIR}/predictions_step_{iter * no_cores + step}.parquet")
 
     saturation = res_tmp.groupby("u_id").apply(
@@ -105,15 +118,16 @@ if __name__ == "__main__":
 
     for i in range(100):
         # Provide new scores
-        all_available = provide_all_available(ratings, users, genres_id)
+        gen = GENRE1 if i % 10 > 4 else GENRE2
+        all_available = provide_all_available(ratings, users)
         all_available['pred'] = provide_ratings(ratings, all_available)
-        new_scores = sample_new_scores(all_available, genres, no_cores)
+        new_scores = sample_new_scores(all_available, genres, no_cores, gen)
         all_available.drop('pred', axis=1, inplace=True)
         all_available = pd.merge(all_available, genres_id, how='left', on='i_id')
 
         with Pool(nodes=no_cores) as pool:
             saturation_list += pool.map(generate_saturation,
-                                        itertools.product([ratings], [new_scores], [all_available], range(no_cores), [i]))
+                                        [a for a in itertools.product([ratings], [new_scores], [all_available], range(no_cores + 2), [i])])
 
         ratings = pd.concat([ratings, new_scores])
 
