@@ -74,14 +74,28 @@ def sample_new_scores(available, genre, sample_size, g):  # OK
             {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], sample_size, replace=False),
              'rating': [5 for _ in range(sample_size)]})
     ).reset_index().drop('level_1', axis=1)
-    return new_scores
+
+    available_all_genres_bad = pd.merge(available,
+                                    genre.reset_index().rename(columns={'index': 'i_id'}),
+                                    how="left", on="i_id")
+    available_genres_bad = available_all_genres_bad.loc[(~available_all_genres_bad[GENRE1]) & (~available_all_genres_bad[GENRE2]), ['u_id', 'i_id', 'pred']]
+    new_scores_bad = available_genres_bad.groupby('u_id').apply(
+        lambda df: pd.DataFrame(
+            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], sample_size // 5,
+                                      replace=False),
+             'rating': np.random.choice([1, 2, 3], size=sample_size // 5, replace=True)})
+    ).reset_index().drop('level_1', axis=1)
+    return pd.concat([new_scores, new_scores_bad]).sample(frac=1, ignore_index=True, axis=0)
 
 
 def generate_saturation(args):
     rats, new_s, all_avail, step, iter = args
     new_scores_tmp = new_s.groupby('u_id').apply(lambda df: df.iloc[:step, :]).reset_index(drop=True)
     ratings_tmp = pd.concat([rats, new_scores_tmp], axis=0)
-    all_available_tmp = all_avail.loc[~all_avail.u_id.isin(new_scores_tmp.u_id.values.tolist()) | ~all_avail.i_id.isin(new_scores_tmp.i_id.values.tolist()), :]
+    all = pd.merge(all_avail,
+                   ratings_tmp.drop('timestamp', axis=1),
+                   how='left', on=['u_id', 'i_id'])
+    all_available_tmp = all.loc[all.rating.isna(), :].drop('rating', axis=1)
 
     preds = provide_ratings(ratings_tmp, all_available_tmp)
 
@@ -104,7 +118,7 @@ if __name__ == "__main__":
 
     for i in range(100):
         # Provide new scores
-        gen = GENRE1 if i % 2 else GENRE2
+        gen = GENRE1 if i % 10 > 4 else GENRE2
         all_available = provide_all_available(ratings, users)
         all_available['pred'] = provide_ratings(ratings, all_available)
         new_scores = sample_new_scores(all_available, genres, no_cores, gen)
