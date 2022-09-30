@@ -81,9 +81,9 @@ def sample_new_scores(available, genre, sample_size, g):  # OK
     available_genres_bad = available_all_genres_bad.loc[(~available_all_genres_bad[GENRE1]) & (~available_all_genres_bad[GENRE2]), ['u_id', 'i_id', 'pred']]
     new_scores_bad = available_genres_bad.groupby('u_id').apply(
         lambda df: pd.DataFrame(
-            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], sample_size // 5,
+            {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], 2,
                                       replace=False),
-             'rating': np.random.choice([1, 2, 3], size=sample_size // 5, replace=True)})
+             'rating': np.random.choice([1, 2, 3], size=2, replace=True)})
     ).reset_index().drop('level_1', axis=1)
     return pd.concat([new_scores, new_scores_bad]).sample(frac=1, ignore_index=True, axis=0)
 
@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
         with Pool(nodes=no_cores) as pool:
             saturation_list += pool.map(generate_saturation,
-                                        [a for a in itertools.product([ratings], [new_scores], [all_available], range(no_cores), [i])])
+                                        [a for a in itertools.product([ratings], [new_scores], [all_available], range(no_cores + 2), [i])])
 
         ratings = pd.concat([ratings, new_scores])
 
