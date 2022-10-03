@@ -234,14 +234,14 @@ def cluster_weekly(model_log, Y_true, Y_test, states, states_test, target, targe
     n_ = model_log["n"]
     uz_fin = np.concatenate([u_fin, np.transpose(z_fin)], axis=1)
 
-    kmeans_Y = KMeans(n_clusters=2).fit(Y_true.reshape(-1, 24*6*2))
+    kmeans_Y = KMeans(n_clusters=2).fit(Y_true.reshape(-1, 24*6))
     kmeans_s = KMeans(n_clusters=2).fit(np.identity(n_)[states].reshape((365, -1)))
     kmeans_e = KMeans(n_clusters=2).fit(uz_fin[states.reshape(-1), :].reshape((365, -1)))
 
     result = {
         "water_demand": {
             "train_ACC": acc_perm((kmeans_Y.labels_ == target).mean()),
-            "test_ACC": acc_perm((kmeans_Y.predict(Y_test.reshape(-1, 24*6*2)) == target_test).mean())
+            "test_ACC": acc_perm((kmeans_Y.predict(Y_test.reshape(-1, 24*6)) == target_test).mean())
         },
         "state_IDs": {
             "train_ACC": acc_perm((kmeans_s.labels_ == target).mean()),
@@ -277,12 +277,12 @@ def classify_working(k, model_log, Y_true, Y_test, states, states_test, target, 
     n_ = model_log["n"]
     uz_fin = np.concatenate([u_fin, np.transpose(z_fin)], axis=1)
 
-    knn_Y = KNeighborsClassifier(n_neighbors=k).fit(Y_true.reshape(-1, 24 * 6 * 2), target)
+    knn_Y = KNeighborsClassifier(n_neighbors=k).fit(Y_true.reshape(-1, 24 * 6 ), target)
     knn_s = KNeighborsClassifier(n_neighbors=k).fit(np.identity(n_)[states].reshape((365, -1)), target)
     knn_e = KNeighborsClassifier(n_neighbors=k).fit(uz_fin[states.reshape(-1), :].reshape((365, -1)), target)
 
-    knn_preds_Y = knn_Y.predict(Y_true.reshape(-1, 24 * 6 * 2))
-    knn_preds_Y_test = knn_Y.predict(Y_test.reshape(-1, 24 * 6 * 2))
+    knn_preds_Y = knn_Y.predict(Y_true.reshape(-1, 24 * 6 ))
+    knn_preds_Y_test = knn_Y.predict(Y_test.reshape(-1, 24 * 6 ))
 
     knn_preds_s = knn_s.predict(np.identity(n_)[states].reshape((365, -1)))
     knn_preds_s_test = knn_s.predict(np.identity(n_)[states_test].reshape((365, -1)))
@@ -303,12 +303,12 @@ def classify_weekday(k, model_log, Y_true, Y_test, states, states_test, target_w
     n_ = model_log["n"]
     uz_fin = np.concatenate([u_fin, np.transpose(z_fin)], axis=1)
 
-    knn_Y = KNeighborsClassifier(n_neighbors=k).fit(Y_true.reshape(-1, 24 * 6 * 2), target_w)
+    knn_Y = KNeighborsClassifier(n_neighbors=k).fit(Y_true.reshape(-1, 24 * 6 ), target_w)
     knn_s = KNeighborsClassifier(n_neighbors=k).fit(np.identity(n_)[states].reshape((365, -1)), target_w)
     knn_e = KNeighborsClassifier(n_neighbors=k).fit(uz_fin[states.reshape(-1), :].reshape((365, -1)), target_w)
 
-    knn_preds_Y = knn_Y.predict(Y_true.reshape(-1, 24 * 6 * 2))
-    knn_preds_Y_test = knn_Y.predict(Y_test.reshape(-1, 24 * 6 * 2))
+    knn_preds_Y = knn_Y.predict(Y_true.reshape(-1, 24 * 6 ))
+    knn_preds_Y_test = knn_Y.predict(Y_test.reshape(-1, 24 * 6 ))
 
     knn_preds_s = knn_s.predict(np.identity(n_)[states].reshape((365, -1)))
     knn_preds_s_test =knn_s.predict(np.identity(n_)[states_test].reshape((365, -1)))
