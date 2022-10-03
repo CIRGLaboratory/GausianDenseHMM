@@ -54,11 +54,11 @@ def provide_data():
 
     lengths = np.array([interval for _ in range(data_train.shape[0] // (interval))] + [
         data_train.shape[0] - (data_train.shape[0] // (interval)) * interval])
-    Y_true = data_train.values.reshape(-1, 2)
+    Y_true = data_train.values.reshape(-1, 1)
 
     lengths_test = np.array([interval for _ in range(data_test.shape[0] // (interval))] + [
         data_test.shape[0] - (data_test.shape[0] // (interval)) * interval])
-    Y_test = data_test.values.reshape(-1, 2)
+    Y_test = data_test.values.reshape(-1, 1)
 
     target = pd.Series(pd.date_range(df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.dt.floor('d').min(),
                                      df_main.loc[df_main.mtime.dt.year == 2018, :].mtime.dt.floor('d').max(),
