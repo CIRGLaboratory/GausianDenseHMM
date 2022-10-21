@@ -18,9 +18,11 @@ from hmmlearn import _utils
 from hmmlearn.hmm import GaussianHMM, _check_and_set_gaussian_n_features
 from hmmlearn.base import ConvergenceMonitor, check_array
 
-from utils import pad_to_seqlen, check_random_state, dict_get, check_dir, compute_stationary, \
+from utils import pad_to_seqlen, check_random_state, dict_get, check_dir, \
     empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian, dtv, find_permutation, check_nodes
 
+from tensorflow.python.ops.numpy_ops import np_config
+np_config.enable_numpy_behavior()
 
 class HMMLoggingMonitor(ConvergenceMonitor):
 
@@ -652,7 +654,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn = None, None  # HMM parameters
         self.A_log_ker, self.A_log_ker_normal, self.pi_log_ker, self.pi_log_ker_normal, self.B_log_ker = None, None, None, None, None
 
-        self.scheduler = dict_get(mstep_config, 'scheduler', default=lambda lr, iter: lr)
+        # self.scheduler = dict_get(mstep_config, 'scheduler', default=lambda lr, iter: lr)
 
         # Only needed for EM optimization
         self.em_epochs = dict_get(mstep_config, 'em_epochs', default=10)
@@ -672,192 +674,98 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.cooc_epochs = dict_get(mstep_config, 'cooc_epochs', default=10)
         self.loss_cooc, self.loss_cooc_update = None, None
         self.A_stationary = None
-        self.omega = None
+        self.omega, self.omega_gt = None, None
         self.means_cooc, self.covars_cooc = None, None
         self.discrete_nodes = check_nodes(nodes) if nodes is not None else None
         self.splits = None
         self.discrete_observables = None
 
-    @tf.function
-    def em_loss_update(self, bar_gamma, bar_gamma_pairwise):  # TODO: sprawdź argumenty, te które są w selfie czytaj bezpośrednio z selfa.
-        # Losses
-        bar_gamma_1 = bar_gamma[0, :]
-        loss_1 = -tf.reduce_sum(input_tensor=self.pi_log_ker * bar_gamma_1, name="loss_1")
-        loss_1_normalization = tf.reduce_sum(input_tensor=self.pi_log_ker_normal * bar_gamma_1, name="loss_1_normalization")
-        loss_2 = -tf.reduce_sum(input_tensor=self.A_log_ker * bar_gamma_pairwise, name="loss_2")
-        loss_2_normalization = tf.reduce_sum(
-            input_tensor=self.A_log_ker_normal[tf.newaxis, :, tf.newaxis] * bar_gamma_pairwise,
-            name="loss_2_normalization")
+    def compute_stationary(self, M, verbose=True):
+        eigval, eigvec = tf.linalg.eig(tf.transpose(M))
+        idx = tf.experimental.numpy.nonzero(tf.experimental.numpy.isclose(eigval, [1.]))[0]
+        # if idx.size < 1:  # TODO: fix and enable
+        #     raise Exception("No Eigenvalue 1")
+        # elif idx.size > 1 and verbose:
+        #     print("Warning: Multiple vectors corresponding to eigenvalue 1.: %s" % str(idx))
+        M_stationary = tf.math.real(eigvec[:, idx[0]])
+        M_stationary = M_stationary / tf.math.reduce_sum(M_stationary)
+        return M_stationary
 
-        loss_3 = -tf.reduce_sum(input_tensor=bar_gamma * self.B_log_ker, name="loss_3")
-
-        loss_total = tf.identity(loss_1 + loss_1_normalization +
-                                 loss_2 + loss_2_normalization +
-                                 loss_3,
-                                 name="loss_total")
-
-        loss_scaled = tf.identity(loss_total / self.scaling, name="loss_scaled")
-
-        # Optimizer step
-        if self.em_optimizer is None:
-            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em")
-
-        self.em_optimizer.minimize(loss_scaled, var_list=[self.u, self.z, self.z0])
-
-    # def _build_tf_em_graph(self, A_log_ker, B_log_ker, pi_log_ker, A_log_ker_normal, pi_log_ker_normal):  # TODO: usuń tworzenie grafu!
-    #     with self.graph.as_default():
-    #         # Placeholders
-    #         gamma = tf.compat.v1.placeholder(name="gamma", dtype=tf.float64,
-    #                                shape=[None, None, self.n_components])
-    #         bar_gamma = tf.compat.v1.placeholder(name="bar_gamma", dtype=tf.float64,
-    #                                    shape=[None, self.n_components])
-    #         bar_gamma_pairwise = tf.compat.v1.placeholder(name="bar_gamma_pairwise",
-    #                                             dtype=tf.float64,
-    #                                             shape=[None, self.n_components,
-    #                                                    self.n_components])
-    #         lr = tf.compat.v1.placeholder(name="lr_em", dtype=tf.float64)
-    #         means = tf.compat.v1.placeholder(name="means", dtype=tf.float64,
-    #                                shape=[self.n_components, self.n_features])
-    #         covars = tf.compat.v1.placeholder(name="covars", dtype=tf.float64,
-    #                                 shape=[self.n_components, self.n_features, self.n_features])  # INFO: put in self.covars_
-    #
-    #         # Losses
-    #         bar_gamma_1 = bar_gamma[0, :]
-    #         loss_1 = -tf.reduce_sum(input_tensor=pi_log_ker * bar_gamma_1)
-    #         loss_1_normalization = tf.reduce_sum(input_tensor=pi_log_ker_normal * bar_gamma_1)
-    #         loss_2 = -tf.reduce_sum(input_tensor=A_log_ker * bar_gamma_pairwise)
-    #         loss_2_normalization = tf.reduce_sum(
-    #             input_tensor=A_log_ker_normal[tf.newaxis, :, tf.newaxis] * bar_gamma_pairwise)
-    #
-    #         loss_3 = -tf.reduce_sum(input_tensor=bar_gamma * B_log_ker)
-    #
-    #         loss_total = tf.identity(loss_1 + loss_1_normalization +
-    #                                  loss_2 + loss_2_normalization +
-    #                                  loss_3,
-    #                                  name="loss_total")
-    #         loss_scaled = tf.identity(loss_total / self.scaling, name="loss_scaled")
-    #         loss_1 = tf.identity(loss_1, name="loss_1")
-    #         loss_1_normalization = tf.identity(loss_1_normalization,
-    #                                            name="loss_1_normalization")
-    #         loss_2 = tf.identity(loss_2, name="loss_2")
-    #         loss_2_normalization = tf.identity(loss_2_normalization,
-    #                                            name="loss_2_normalization")
-    #         loss_3 = tf.identity(loss_3, name="loss_3")
-    #
-    #         # Optimizer step
-    #         if self.em_optimizer is None:
-    #             self.em_optimizer = tf.compat.v1.train.GradientDescentOptimizer(lr)
-    #         loss_update = self.em_optimizer.minimize(loss_scaled, name='loss_update')
-    #
-    #         return means, covars, gamma, bar_gamma, bar_gamma_pairwise, lr, loss_update, loss_scaled, loss_1, loss_1_normalization, loss_2, loss_2_normalization, loss_3
-
-    @tf.function
-    def cooc_loss_update(self, omega_gt, A, A_stationary):  #  TODO:  get A< A_stationary...
-        theta = A * A_stationary[:, None]  # theta[i, j] = p(s_t = s_i, s_{t+1} = s_j) = A[i, j] * pi[i]
-
-        omega = tf.matmul(tf.transpose(a=self.B_scalars.numpy()), tf.matmul(theta, self.B_scalars.numpy()))
-        if self.loss_type == "square":
-            loss_cooc = tf.reduce_sum(input_tensor=tf.square(omega_gt - omega))
-        elif self.loss_type == "square_log":
-            loss_cooc = tf.reduce_sum(input_tensor=tf.square(tf.math.log(omega_gt) - tf.math.log(omega)))
-        else:
-            loss_cooc = tf.reduce_sum(input_tensor=tf.math.abs(tf.math.log(omega_gt) - tf.math.log(omega)))
-
-        if self.cooc_optimizer is None:
-            self.cooc_optimizer = tf.keras.optimizers.Adam(learning_rate=self.cooc_lr, name="adam_cooc")
-
-        return self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc,
-                                                                 self.covars_vec, self.z0])  # TODO: z0??
-
-    # def _build_tf_coocs_graph(self, A_from_reps_hmmlearn, B_scalars, omega_gt, penalty):   # TODO: usuń tworzenie grafu!
-    #
-    #     with self.graph.as_default():
-    #         A = A_from_reps_hmmlearn
-    #         A_stationary = tf.compat.v1.placeholder(name="A_stationary", dtype=tf.float64,
-    #                                       shape=[self.n_components])  # Assumed to be the eigenvector of A.T
-    #         theta = A * A_stationary[:, None]  # theta[i, j] = p(s_t = s_i, s_{t+1} = s_j) = A[i, j] * pi[i]
-    #
-    #         omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
-    #         if self.loss_type == "square":
-    #             loss_cooc = tf.reduce_sum(input_tensor=tf.square(omega_gt - omega))
-    #         elif self.loss_type == "square_log":
-    #             loss_cooc = tf.reduce_sum(input_tensor=tf.square(tf.math.log(omega_gt) - tf.math.log(omega)))
-    #         else:
-    #             loss_cooc = tf.reduce_sum(input_tensor=tf.math.abs(tf.math.log(omega_gt) - tf.math.log(omega)))
-    #
-    #         lr = tf.compat.v1.placeholder(name="lr_cooc", dtype=tf.float64)
-    #
-    #         loss_cooc += penalty * lr
-    #
-    #         if self.cooc_optimizer is None:
-    #             self.cooc_optimizer = tf.compat.v1.train.GradientDescentOptimizer(lr)
-    #         loss_cooc_update = self.cooc_optimizer.minimize(loss_cooc, var_list=[self.u, self.z, self.means_cooc,
-    #                                                                              self.covars_vec])
-    #         return loss_cooc, loss_cooc_update, A_stationary, omega, lr
-
-    @tf.function
-    def _build_tf_graph(self, X):  # TODO:  rename!
-        if self.representations not in self.SUPPORTED_REPRESENTATIONS:  # TODO: remove all representation stuff!!
-            raise Exception("Given representation argument is invalid. Has to be one of %s" %
-                            str(self.SUPPORTED_REPRESENTATIONS))
-
-        if len(self.opt_schemes.difference(self.SUPPORTED_OPT_SCHEMES)) > 0:
-            raise Exception(
-                "Given unsupported optimization scheme! Supported are: %s" % str(self.SUPPORTED_OPT_SCHEMES))
-
-        # Trainables in both fit methods
-        u = tf.Variable(name="u", dtype=tf.float64, shape=[self.n_components, self.l_uz],
-                        initial_value=self.initializer(shape=(self.n_components, self.l_uz)),
-                        trainable=('u' in self.trainables))
-
-        z = tf.Variable(name="z", dtype=tf.float64, shape=[self.l_uz, self.n_components],
-                        initial_value=self.initializer(shape=(self.l_uz, self.n_components)),
-                        trainable=('z' in self.trainables and
-                                   ('z0' not in self.trainables
-                                    or 'zz0' in self.trainables)))
-        z0 = tf.Variable(name="z0", dtype=tf.float64, shape=[self.l_uz, 1],
-                        initial_value=self.initializer(shape=(self.l_uz, 1)),
-                        trainable=('z0' in self.trainables))
+    def calculate_all_scalars(self):
+        if self.covariance_type == "full":
+            L = tfp.math.fill_triangular(self.covars_vec, name="L")
+            covars_cooc = tf.matmul(L, tf.transpose(a=L, perm=[0, 2, 1]), name="covars_direct")
+        elif self.covariance_type == "diag":
+            covars_cooc = tf.linalg.diag(self.covars_vec)
 
         """ Recovering A, B, pi """
         # Compute scalar products
-        A_scalars = tf.matmul(u, z, name="A_scalars")
-        pi_scalars = tf.matmul(u, z0, name="pi_scalars")
+        A_scalars = tf.matmul(self.u, self.z, name="A_scalars")
+        pi_scalars = tf.matmul(self.u, self.z0, name="pi_scalars")
 
         # Apply kernel
-        if self.kernel == 'exp' or self.kernel == tf.exp:
-
-            A_from_reps = tf.nn.softmax(A_scalars, axis=0)
-            pi_from_reps = tf.nn.softmax(pi_scalars, axis=0)
-
-            A_log_ker_normal = tf.reduce_logsumexp(input_tensor=A_scalars, axis=0)  # L
-            pi_log_ker_normal = tf.reduce_logsumexp(input_tensor=pi_scalars)  # L0
-
-            A_log_ker = tf.identity(A_scalars, name='A_log_ker')
-            pi_log_ker = tf.identity(pi_scalars, name='pi_log_ker')
-
-        else:
-            A_scalars_ker = self.kernel(A_scalars)
-            pi_scalars_ker = self.kernel(pi_scalars)
-
-            A_from_reps = A_scalars_ker / tf.reduce_sum(input_tensor=A_scalars_ker, axis=0)[tf.newaxis, :]
-            pi_from_reps = pi_scalars_ker / tf.reduce_sum(input_tensor=pi_scalars_ker)
-
-            A_log_ker_normal = tf.math.log(tf.reduce_sum(input_tensor=A_scalars_ker, axis=0))
-            pi_log_ker_normal = tf.math.log(tf.reduce_sum(input_tensor=pi_scalars_ker))
-
-            A_log_ker = tf.math.log(A_scalars_ker, name='A_log_ker')
-            pi_log_ker = tf.math.log(pi_scalars_ker, name='pi_log_ker')
+        A_from_reps = tf.math.softmax(A_scalars, axis=0)
+        pi_from_reps = tf.math.softmax(pi_scalars, axis=0)
 
         # hmmlearn library uses a different convention for the shapes of the matrices
         A_from_reps_hmmlearn = tf.transpose(a=A_from_reps, name='A_from_reps')
         pi_from_reps_hmmlearn = tf.reshape(pi_from_reps, (-1,), name='pi_from_reps')
 
-        # Member variables for convenience
-        self.u, self.z, self.z0 = u, z, z0
-        self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn = A_from_reps_hmmlearn, pi_from_reps_hmmlearn
-        self.A_log_ker, self.A_log_ker_normal, self.pi_log_ker, self.pi_log_ker_normal = A_log_ker, A_log_ker_normal, pi_log_ker,  pi_log_ker_normal
+        if self.n_features == 1:
+            B_scalars_tmp = .5 * (
+                    1 + tf.math.erf((self.discrete_nodes - tf.transpose(a=self.means_cooc)) / (
+                    tf.nn.relu(tf.transpose(a=covars_cooc[:, :, 0])) + 1e-10) / np.sqrt(2)))
 
+            B_scalars = tf.transpose(a=B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_cooc")
+        elif self.n_features == 2:
+            B_scalars_tmp = None
+            if self.covariance_type == "full":
+                mvn = tfp.distributions.MultivariateNormalTriL(self.means_cooc, self.covars_cooc)
+                mvn_sample = mvn.sample(100000, seed=2022)
+                B_scalars_tmp = tf.map_fn(
+                    lambda n: tf.reduce_mean(
+                        input_tensor=tf.cast(tf.reduce_all(input_tensor=mvn_sample <= n, axis=-1), mvn.dtype),
+                        axis=0), self.discrete_nodes)
+            elif self.covariance_type == "diag":
+                B_scalars_tmp = tf.reduce_prod(input_tensor=.5 * (
+                        1 + tf.math.erf((tf.expand_dims(self.discrete_nodes, axis=-1) - tf.expand_dims(
+                    tf.transpose(a=self.means_cooc), axis=0)) / (
+                                                tf.nn.relu(tf.expand_dims(tf.transpose(a=covars_vec),
+                                                                          axis=0)) + 1e-10) / np.sqrt(2))), axis=1)
+            B_scalars_tmp_wide = tf.reshape(B_scalars_tmp, (*[n.shape[0] for n in self.splits], self.n_components))
+            B_scalars = tf.transpose(a=tf.reshape(
+                B_scalars_tmp_wide[:-1, 1:, :] - B_scalars_tmp_wide[:-1, :-1, :] - B_scalars_tmp_wide[1:, 1:,
+                                                                                   :] + B_scalars_tmp_wide[1:, :-1,
+                                                                                        :],
+                (-1, self.n_components)), name="B_scalars_cooc")
+        else:
+            raise Exception("Co-occurrences for dimensionality >=  3  not implemented.")
+
+        return A_from_reps_hmmlearn, pi_from_reps_hmmlearn, B_scalars, covars_cooc
+
+    @tf.function
+    def em_loss_update(self):  # TODO: sprawdź argumenty, te które są w selfie czytaj bezpośrednio z selfa.
+        X = self.X
+        bar_gamma, bar_gamma_pairwise = self.bar_gamma, self.bar_gamma_pairwise
+
+        """ Recovering A, B, pi """
+        # Compute scalar products
+        A_scalars = tf.matmul(self.u, self.z, name="A_scalars")
+        pi_scalars = tf.matmul(self.u, self.z0, name="pi_scalars")
+
+        # Apply kernel
+        A_from_reps = tf.math.softmax(A_scalars, axis=0)
+        pi_from_reps = tf.math.softmax(pi_scalars, axis=0)
+
+        A_log_ker_normal = tf.reduce_logsumexp(A_scalars, axis=0)  # L
+        pi_log_ker_normal = tf.reduce_logsumexp(pi_scalars)  # L0
+
+        A_log_ker = tf.identity(A_scalars, name='A_log_ker')
+        pi_log_ker = tf.identity(pi_scalars, name='pi_log_ker')
+
+        # # hmmlearn library uses a different convention for the shapes of the matrices
+        # A_from_reps_hmmlearn = tf.transpose(a=A_from_reps, name='A_from_reps')
+        # pi_from_reps_hmmlearn = tf.reshape(pi_from_reps, (-1,), name='pi_from_reps')
 
         # Build optimization graphs
         if 'em' in self.opt_schemes:
@@ -869,65 +777,100 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 B_scalars_ker = B_scalars
                 B_log_ker = tf.math.log(B_scalars_ker, name='B_log_ker_em')
 
-            self.B_log_ker = B_log_ker
+
+        # Losses
+        bar_gamma_1 = bar_gamma[0, :]
+        loss_1 = -tf.reduce_sum(input_tensor=pi_log_ker * bar_gamma_1, name="loss_1")
+        loss_1_normalization = tf.reduce_sum(input_tensor=pi_log_ker_normal * bar_gamma_1, name="loss_1_normalization")
+        loss_2 = -tf.reduce_sum(input_tensor=A_log_ker * bar_gamma_pairwise, name="loss_2")
+        loss_2_normalization = tf.reduce_sum(
+            input_tensor=A_log_ker_normal[tf.newaxis, :, tf.newaxis] * bar_gamma_pairwise,
+            name="loss_2_normalization")
+
+        loss_3 = -tf.reduce_sum(input_tensor=bar_gamma * B_log_ker, name="loss_3")
+
+        loss_total = tf.identity(loss_1 + loss_1_normalization +
+                                 loss_2 + loss_2_normalization +
+                                 loss_3,
+                                 name="loss_total")
+
+        loss_scaled = tf.identity(loss_total / self.scaling, name="loss_scaled")
+
+        return loss_scaled
+
+
+    @tf.function
+    def cooc_loss_update(self):  #  TODO:  get A< A_stationary...
+
+        A_from_reps_hmmlearn, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
+
+        A_stationary = self.compute_stationary(A_from_reps_hmmlearn, verbose=False)
+        omega_gt = self.omega_gt
+
+        theta = A_from_reps_hmmlearn * A_stationary[:, None]
+        omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
+        self.omega = omega
+        if self.loss_type == "square":
+            loss_cooc = tf.reduce_sum(input_tensor=tf.square(omega_gt - omega))
+        elif self.loss_type == "square_log":
+            loss_cooc = tf.reduce_sum(input_tensor=tf.square(tf.math.log(omega_gt) - tf.math.log(omega)))
+        else:
+            loss_cooc = tf.reduce_sum(input_tensor=tf.math.abs(tf.math.log(omega_gt) - tf.math.log(omega)))
+
+        self.loss_cooc = loss_cooc
+        return loss_cooc
+
+
+    def _init_tf(self, X):  # TODO:  rewrite all!
+        self.X = X
+        if self.representations not in self.SUPPORTED_REPRESENTATIONS:  # TODO: remove all representation stuff!!
+            raise Exception("Given representation argument is invalid. Has to be one of %s" %
+                            str(self.SUPPORTED_REPRESENTATIONS))
+
+        if len(self.opt_schemes.difference(self.SUPPORTED_OPT_SCHEMES)) > 0:
+            raise Exception(
+                "Given unsupported optimization scheme! Supported are: %s" % str(self.SUPPORTED_OPT_SCHEMES))
+
+        # Trainables in both fit methods
+        u = tf.Variable(name="u", dtype=tf.float32, shape=[self.n_components, self.l_uz],
+                        initial_value=self.initializer(shape=(self.n_components, self.l_uz)),
+                        trainable=('u' in self.trainables))
+
+        z = tf.Variable(name="z", dtype=tf.float32, shape=[self.l_uz, self.n_components],
+                        initial_value=self.initializer(shape=(self.l_uz, self.n_components)),
+                        trainable=('z' in self.trainables and
+                                   ('z0' not in self.trainables
+                                    or 'zz0' in self.trainables)))
+        z0 = tf.Variable(name="z0", dtype=tf.float32, shape=[self.l_uz, 1],
+                         initial_value=self.initializer(shape=(self.l_uz, 1)),
+                         trainable=('z0' in self.trainables))
+
+        self.u, self.z, self.z0 = u, z, z0
 
         if 'cooc' in self.opt_schemes:
             # Additional trainables in fit_cooc
-            means_cooc = tf.Variable(name="means_cooc", dtype=tf.float64,
+            means_cooc = tf.Variable(name="means_cooc", dtype=tf.float32,
                                      shape=[self.n_components, self.n_features],
                                      initial_value=self.means_,
                                      trainable=('m' in self.trainables))
             if self.covariance_type == "full":
-                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
+                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float32,
                                          shape=[self.n_components, (self.n_features * (self.n_features + 1)) // 2],
-                                         initial_value=np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2)),
+                                         initial_value=np.ones(
+                                             (self.n_components, (self.n_features * (self.n_features + 1)) // 2)),
                                          trainable=('c' in self.trainables))
-                L = tfp.math.fill_triangular(covars_vec, name="L")
-                covars_cooc = tf.matmul(L, tf.transpose(a=L, perm=[0, 2, 1]), name="covars_direct")
-                self.covars_cooc = covars_cooc
-                self.covars_vec = covars_vec
+
 
             elif self.covariance_type == "diag":
-                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
+                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float32,
                                          shape=[self.n_components, self.n_features],
                                          initial_value=np.ones((self.n_components, self.n_features)),
                                          trainable=('c' in self.trainables))
-                covars_cooc = tf.linalg.diag(covars_vec)
-                self.covars_cooc = covars_vec
-                self.covars_vec = covars_vec
 
             self.means_cooc = means_cooc
-
-            if self.n_features == 1:
-                B_scalars_tmp = .5 * (
-                            1 + tf.math.erf((self.discrete_nodes - tf.transpose(a=means_cooc)) / (
-                            tf.nn.relu(tf.transpose(a=covars_cooc[:, :, 0])) + 1e-10) / np.sqrt(2)))
-
-                B_scalars = tf.transpose(a=B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_cooc")
-            elif self.n_features == 2:
-                if self.covariance_type == "full":
-                    mvn = tfp.distributions.MultivariateNormalTriL(means_cooc, covars_cooc)
-                    mvn_sample = mvn.sample(100000, seed=2022)
-                    B_scalars_tmp = tf.map_fn(
-                        lambda n: tf.reduce_mean(input_tensor=tf.cast(tf.reduce_all(input_tensor=mvn_sample <= n, axis=-1), mvn.dtype),
-                                                 axis=0), self.discrete_nodes)
-                elif self.covariance_type == "diag":
-                    B_scalars_tmp = tf.reduce_prod(input_tensor=.5 * (
-                            1 + tf.math.erf((tf.expand_dims(self.discrete_nodes, axis=-1) - tf.expand_dims(tf.transpose(a=means_cooc), axis=0)) / (
-                            tf.nn.relu(tf.expand_dims(tf.transpose(a=covars_vec),  axis=0)) + 1e-10) / np.sqrt(2))), axis=1)
-                B_scalars_tmp_wide = tf.reshape(B_scalars_tmp, (*[n.shape[0] for n in self.splits], self.n_components))
-                B_scalars = tf.transpose(a=tf.reshape(B_scalars_tmp_wide[:-1, 1:, :] - B_scalars_tmp_wide[:-1, :-1, :] - B_scalars_tmp_wide[1:, 1:, :] + B_scalars_tmp_wide[1:, :-1, :], (-1, self.n_components)), name="B_scalars_cooc")
-            else:
-                raise Exception("Co-occurrences for dimensionality >=  3  not implemented.")
-
-            self.B_scalars = B_scalars
-
-
-    def _init_tf(self, X):  # TODO:  rewrite all!
-        self._build_tf_graph(X)
-        self.startprob_ = self.pi_from_reps_hmmlearn.numpy()
-        self.transmat_ = self.A_from_reps_hmmlearn.numpy()
-
+            self.covars_vec = covars_vec
+            
+    
     def _init(self, X, lengths=None):
         X, n_seqs, max_seqlen = check_arr_gaussian(X, lengths)
 
@@ -960,9 +903,14 @@ class GaussianDenseHMM(GammaGaussianHMM):
     """ Learns representations, recovers transition matrices and sets them """
 
     def _do_mstep(self, stats):
+
+        # Optimizer step
+        if self.em_optimizer is None:
+            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em")
+
+        self.em_optimizer.minimize(self.em_loss_update, var_list=[self.u, self.z, self.z0])
+
         it = stats["iter"]
-        # if self.session is None:
-        #     raise Exception("Uninitialized TF Session. You must call _init first")
 
         for epoch in range(self.em_epochs):
             self.em_loss_update(stats['bar_gamma'], stats['bar_gamma_pairwise'])
@@ -1112,7 +1060,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
             gt_omega = np.matmul(B.T, np.matmul(theta, B))
 
         gt_omega = gt_omega_emp if gt_omega is None else gt_omega
-        log_dict = self._fit_coocs(gt_omega, X, lengths, val_lengths)
+        self.omega_gt = gt_omega.astype('float32')
+        log_dict = self._fit_coocs(X, lengths, val_lengths)
 
         log_dict['cooc_logprobs'] = self.score_individual_sequences(X, lengths)[0]
         if val is not None and val_lengths is not None:
@@ -1128,7 +1077,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         nodes_x = [np.sort(splits[splits[:, 0] == float(i), 1]) for i in np.unique(splits[:, 0])]
         nodes = np.array([t for t in itertools.product(*nodes_x)])
         self.splits = nodes_x  # number  of splits  on each axis
-        self.discrete_nodes = nodes.astype('float64')
+        self.discrete_nodes = nodes.astype('float32')
         self.discrete_observables = [n.shape[0] - 1 for n in nodes_x]
 
     def _to_discrete(self, X):
@@ -1136,35 +1085,25 @@ class GaussianDenseHMM(GammaGaussianHMM):
         X_disc = np.array([indexes[i] for i in zip(*[(X[:, j].reshape(-1, 1) > self.splits[j].reshape(1, -1)).sum(axis=1) - 1 for j in range(len(self.splits))])])
         return X_disc
 
-    def _fit_coocs(self, omega_gt, X, lengths, val_lengths=None):
-
-        # if self.session is None:
-        #     raise Exception("Unintialized session")
-
-        A_ = self.A_from_reps_hmmlearn.numpy()
-        A_stationary_ = self.A_stationary  #.numpy() ?
-        omega_ = self.omega
-
-        def get_ABA_stationary():  # TODO: po  co ta funkcja??...
-            A = A_.numpy()
-            return A, compute_stationary(A, verbose=False)
-
-        # feed_dict = {self.omega_gt_ph: omega_gt, A_stationary_: None}
+    def _fit_coocs(self, X, lengths, val_lengths=None):
         losses = []
 
-        for epoch in range(self.cooc_epochs):
-            # A, A_stat = get_ABA_stationary()
-            # feed_dict[A_stationary_] = A_stat
-            # feed_dict[self.lr_cooc_placeholder] = np.float64(self.scheduler(self.cooc_lr, epoch))
+        if self.cooc_optimizer is None:
+            self.cooc_optimizer = tf.keras.optimizers.Adam(learning_rate=self.cooc_lr, name="adam_cooc")
 
-            # self.session.run(self.loss_cooc_update, feed_dict=feed_dict)
-            self.cooc_loss_update(omega_gt, A_, compute_stationary(A_, verbose=False))   # TODO!
-            cur_loss = self.loss_cooc.numpy()
+        for epoch in range(self.cooc_epochs):
+            self.cooc_optimizer.minimize(self.cooc_loss_update,
+                                         var_list=[self.u, self.z, self.means_cooc, self.covars_vec, self.z0],
+                                         tape=tf.GradientTape())  # TODO: z0??
+            cur_loss = tf.get_static_value(self.cooc_loss_update())
             losses.append(cur_loss)
 
             if epoch % 1000 == 0:
-                A, A_stat = get_ABA_stationary()
-                means_c, covars_c = self.means_cooc.numpy(), self.covars_cooc.numpy()
+                A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
+                A_stat = self.compute_stationary(A, verbose=False)
+                means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(covars_cooc)
+                theta = A * A_stat[:, None]
+                omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
                 self.transmat_ = A
                 self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
                 self._covars_ = np.square(covars_c) if np.isnan(
@@ -1174,7 +1113,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 self.logging_monitor.report(self.score(X, lengths), # None,  #
                                             preds=self.predict(X, lengths),
                                             transmat=A, startprob=A_stat, means=means_c, covars=np.square(covars_c),
-                                            omega_gt=omega_gt, learned_omega=self.omega.numpy(),
+                                            omega_gt=self.omega_gt, learned_omega=tf.get_static_value(omega),
                                             z=z, z0=z0, u=u, loss=cur_loss)
                 if self.verbose:
                     print(cur_loss)
@@ -1182,11 +1121,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
         log_dict = {}
         log_dict['cooc_losses'] = losses
 
-        A, A_stat = get_ABA_stationary()
-        # feed_dict[A_stationary_] = A_stat
-        # learned_omega = self.session.run(self.omega, feed_dict)
-        learned_omega = self.omega.numpy()
-        means_c, covars_c = self.means_cooc.numpy(), self.covars_cooc.numpy()
+        A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
+        A_stat = self.compute_stationary(A, verbose=False)
+        theta = A * A_stat[:, None]
+        learned_omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
+        means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(covars_cooc)
         self.transmat_ = A
         self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
         self._covars_ = np.square(covars_c) if np.isnan(
