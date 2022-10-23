@@ -18,7 +18,7 @@ from hmmlearn import _utils
 from hmmlearn.hmm import GaussianHMM, _check_and_set_gaussian_n_features
 from hmmlearn.base import ConvergenceMonitor, check_array
 
-from utils import pad_to_seqlen, check_random_state, dict_get, check_dir, \
+from utils import pad_to_seqlen, check_random_state, dict_get, check_dir, check_arr, \
     empirical_coocs, iter_from_Xlengths, check_is_fitted, check_arr_gaussian, dtv, find_permutation, check_nodes
 
 from tensorflow.python.ops.numpy_ops import np_config
@@ -549,6 +549,28 @@ class GammaGaussianHMM(GaussianHMM):
         into an observations matrix (n_sequences, max_seqlen) 
         by padding sequences to max_seqlen """
 
+    # def _observations_to_padded_matrix(self, X, lengths):
+    #
+    #     O, n_seqs, max_seqlen = check_arr_gaussian(X, lengths)
+    #     # O = O.flatten()
+    #
+    #
+    #     # X has shape (seqs, 1);
+    #     # Turn it into (seqs, max_seqlen) by padding
+    #     arr = np.zeros((len(lengths), max_seqlen))
+    #     for idx, (i, j) in enumerate(iter_from_Xlengths(X, lengths)):
+    #         sequence = O[i:j]
+    #         arr[idx] = np.pad(sequence,
+    #                           (0, max_seqlen - len(sequence)),
+    #                           'constant', constant_values=(0))
+    #
+    #     # Check if arr contains only integer
+    #     # if not np.all(np.equal(np.mod(arr, 1), 0)):
+    #     #     raise Exception("Sequence elements have to be integer! \n"
+    #     #                     "arr: \n %s \n X \n %s" % (str(arr), str(O)))
+    #     # O = arr.astype(np.int)
+    #     return O, n_seqs, max_seqlen
+
 
 class StandardGaussianHMM(GammaGaussianHMM):
 
@@ -651,31 +673,29 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         # TF variables and placeholders
         self.u, self.z, self.z0 = None, None, None  # Representations
-        self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn = None, None  # HMM parameters
-        self.A_log_ker, self.A_log_ker_normal, self.pi_log_ker, self.pi_log_ker_normal, self.B_log_ker = None, None, None, None, None
-
-        # self.scheduler = dict_get(mstep_config, 'scheduler', default=lambda lr, iter: lr)
+        # self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn = None, None  # HMM parameters
+        # self.A_log_ker, self.A_log_ker_normal, self.pi_log_ker, self.pi_log_ker_normal, self.B_log_ker = None, None, None, None, None
 
         # Only needed for EM optimization
         self.em_epochs = dict_get(mstep_config, 'em_epochs', default=10)
         self.em_lr = dict_get(mstep_config, 'em_lr', default=0.01)
         self.em_optimizer = dict_get(mstep_config, 'em_optimizer', default=None)
         self.scaling = dict_get(mstep_config, 'scaling', default=n_hidden_states)
-        self.gamma, self.bar_gamma, self.bar_gamma_pairwise, self.lr = None, None, None, None  # Placeholders
-        self.loss_1, self.loss_1_normalization, self.loss_2, self.loss_2_normalization, self.loss_3, self.loss_3_normalization = None, None, None, None, None, None
-        self.loss_scaled, self.loss_update = None, None  # Loss to optimize
+        # self.gamma, self.bar_gamma, self.bar_gamma_pairwise, self.lr = None, None, None, None  # Placeholders
+        # self.loss_1, self.loss_1_normalization, self.loss_2, self.loss_2_normalization, self.loss_3, self.loss_3_normalization = None, None, None, None, None, None
+        # self.loss_scaled, self.loss_update = None, None  # Loss to optimize
 
         # Only needed for cooc optimization
-        self.covars_cooc, self.covars_vec, self.means_cooc = None, None, None
+        # self.covars_cooc, self.covars_vec, self.means_cooc = None, None, None
         self.loss_type = dict_get(mstep_config, 'loss_type', default='abs_log')
         self.cooc_lr = dict_get(mstep_config, 'cooc_lr', default=0.001)
         self.cooc_optimizer = dict_get(mstep_config, 'cooc_optimizer',
                                        default=None)
         self.cooc_epochs = dict_get(mstep_config, 'cooc_epochs', default=10)
-        self.loss_cooc, self.loss_cooc_update = None, None
-        self.A_stationary = None
-        self.omega, self.omega_gt = None, None
-        self.means_cooc, self.covars_cooc = None, None
+        # self.loss_cooc, self.loss_cooc_update = None, None
+        # self.A_stationary = None
+        # self.omega, self.omega_gt = None, None
+        # self.means_cooc, self.covars_cooc = None, None
         self.discrete_nodes = check_nodes(nodes) if nodes is not None else None
         self.splits = None
         self.discrete_observables = None
@@ -730,7 +750,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 B_scalars_tmp = tf.reduce_prod(input_tensor=.5 * (
                         1 + tf.math.erf((tf.expand_dims(self.discrete_nodes, axis=-1) - tf.expand_dims(
                     tf.transpose(a=self.means_cooc), axis=0)) / (
-                                                tf.nn.relu(tf.expand_dims(tf.transpose(a=covars_vec),
+                                                tf.nn.relu(tf.expand_dims(tf.transpose(a=self.covars_vec),
                                                                           axis=0)) + 1e-10) / np.sqrt(2))), axis=1)
             B_scalars_tmp_wide = tf.reshape(B_scalars_tmp, (*[n.shape[0] for n in self.splits], self.n_components))
             B_scalars = tf.transpose(a=tf.reshape(
@@ -746,7 +766,10 @@ class GaussianDenseHMM(GammaGaussianHMM):
     @tf.function
     def em_loss_update(self):  # TODO: sprawdź argumenty, te które są w selfie czytaj bezpośrednio z selfa.
         X = self.X
-        bar_gamma, bar_gamma_pairwise = self.bar_gamma, self.bar_gamma_pairwise
+        # O = self.O
+        gamma, bar_gamma, bar_gamma_pairwise = self.gamma, self.bar_gamma, self.bar_gamma_pairwise
+
+
 
         """ Recovering A, B, pi """
         # Compute scalar products
@@ -754,7 +777,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         pi_scalars = tf.matmul(self.u, self.z0, name="pi_scalars")
 
         # Apply kernel
-        A_from_reps = tf.math.softmax(A_scalars, axis=0)
+        A_from_reps = tf.math.softmax(A_scalars, axis=0)  # self.A_from_reps_hmmlearn, self.pi_from_reps_hmmlearn
         pi_from_reps = tf.math.softmax(pi_scalars, axis=0)
 
         A_log_ker_normal = tf.reduce_logsumexp(A_scalars, axis=0)  # L
@@ -767,16 +790,47 @@ class GaussianDenseHMM(GammaGaussianHMM):
         # A_from_reps_hmmlearn = tf.transpose(a=A_from_reps, name='A_from_reps')
         # pi_from_reps_hmmlearn = tf.reshape(pi_from_reps, (-1,), name='pi_from_reps')
 
-        # Build optimization graphs
-        if 'em' in self.opt_schemes:
-            mvn = tfp.distributions.MultivariateNormalTriL(self.means_, self.covars_)
-            B_scalars = tf.map_fn(lambda x: mvn.prob(x), X, name="B_scalars_em")
-            if self.kernel == 'exp' or self.kernel == tf.exp:
-                B_log_ker = tf.identity(B_scalars, name='B_log_ker_em')
-            else:
-                B_scalars_ker = B_scalars
-                B_log_ker = tf.math.log(B_scalars_ker, name='B_log_ker_em')
+        # if self.n_features == 1:
+        #     B_scalars_tmp = .5 * (
+        #             1 + tf.math.erf((self.discrete_nodes - tf.transpose(self.means_)) / (
+        #             tf.nn.relu(tf.transpose(self.covars_[:, :, 0])) + 1e-10) / np.sqrt(2)))
+        #
+        #     B_scalars = tf.transpose(B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :], name="B_scalars_em")
+        # elif self.n_features == 2:
+        #     if self.covariance_type == "full":
+        #         mvn = tfp.distributions.MultivariateNormalTriL(self.means_, self.covars_)
+        #         mvn_sample = mvn.sample(100000, seed=2022)
+        #         B_scalars_tmp = tf.map_fn(
+        #             lambda n: tf.reduce_mean(tf.cast(tf.reduce_all(mvn_sample <= n, axis=-1), mvn.dtype),
+        #                                      axis=0), self.discrete_nodes)
+        #     elif self.covariance_type == "diag":
+        #         B_scalars_tmp = tf.reduce_prod(.5 * (
+        #                 1 + tf.math.erf((tf.expand_dims(self.discrete_nodes, axis=-1) - tf.expand_dims(
+        #             tf.transpose(self.means_), axis=0)) / (
+        #                                    tf.nn.relu(
+        #                                        tf.expand_dims(tf.transpose(self.covars_), axis=0)) + 1e-10) / np.sqrt(
+        #             2))), axis=1)
+        #     B_scalars_tmp_wide = tf.reshape(B_scalars_tmp, (*[n.shape[0] for n in self.splits], self.n_components))
+        #     B_scalars = tf.transpose(tf.reshape(
+        #         B_scalars_tmp_wide[:-1, 1:, :] - B_scalars_tmp_wide[:-1, :-1, :] - B_scalars_tmp_wide[1:, 1:,
+        #                                                                            :] + B_scalars_tmp_wide[1:, :-1, :],
+        #         (-1, self.n_components)), name="B_scalars_em")
+        # else:
+        #     raise Exception("Co-occurrences for dimensionality >=  3  not implemented.")
+        #
+        # if self.kernel == 'exp' or self.kernel == tf.exp:  # TODO: recheck
+        #     B_log_ker = tf.identity(B_scalars, name='B_log_ker_em')
+        # else:
+        #     B_scalars_ker = B_scalars
+        #     B_log_ker = tf.math.log(B_scalars_ker, name='B_log_ker_em')
 
+        mvn = tfp.distributions.MultivariateNormalTriL(self.means_, self.covars_)
+        B_scalars = tf.map_fn(lambda x: mvn.prob(x), X, name="B_scalars_em")
+        if self.kernel == 'exp' or self.kernel == tf.exp:
+            B_log_ker = tf.math.log(B_scalars, name='B_log_ker_em')
+        else:
+            B_scalars_ker = B_scalars
+            B_log_ker = tf.math.log(B_scalars_ker, name='B_log_ker_em')
 
         # Losses
         bar_gamma_1 = bar_gamma[0, :]
@@ -786,8 +840,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
         loss_2_normalization = tf.reduce_sum(
             input_tensor=A_log_ker_normal[tf.newaxis, :, tf.newaxis] * bar_gamma_pairwise,
             name="loss_2_normalization")
-
-        loss_3 = -tf.reduce_sum(input_tensor=bar_gamma * B_log_ker, name="loss_3")
+        # tilde_M = tf.einsum('ito,oh->ith', np.eye(1)[O], B_log_ker)
+        # loss_3 = -tf.reduce_sum(gamma * tilde_M)
+        loss_3 = -tf.reduce_sum(input_tensor=gamma.reshape(-1, self.n_components)[:B_log_ker.shape[0], :] * B_log_ker, name="loss_3")
 
         loss_total = tf.identity(loss_1 + loss_1_normalization +
                                  loss_2 + loss_2_normalization +
@@ -821,8 +876,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         return loss_cooc
 
 
-    def _init_tf(self, X):  # TODO:  rewrite all!
-        self.X = X
+    def _init_tf(self):  # TODO:  rewrite all!
         if self.representations not in self.SUPPORTED_REPRESENTATIONS:  # TODO: remove all representation stuff!!
             raise Exception("Given representation argument is invalid. Has to be one of %s" %
                             str(self.SUPPORTED_REPRESENTATIONS))
@@ -873,6 +927,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
     
     def _init(self, X, lengths=None):
         X, n_seqs, max_seqlen = check_arr_gaussian(X, lengths)
+        self.X = X
+        # O, n_seqs, max_seqlen = self._observations_to_padded_matrix(X, lengths)
+        # self.X = O
 
         if self.matrix_initializer is not None:
             self._init_matrices_using_initializer(self.matrix_initializer)
@@ -897,7 +954,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 _utils.distribute_covar_matrix_to_match_covariance_type(
                     cv, self.covariance_type, self.n_components).copy()
 
-        self._init_tf(X)
+        self._init_tf()
+
         return X, n_seqs, max_seqlen
 
     """ Learns representations, recovers transition matrices and sets them """
@@ -908,18 +966,25 @@ class GaussianDenseHMM(GammaGaussianHMM):
         if self.em_optimizer is None:
             self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em")
 
-        self.em_optimizer.minimize(self.em_loss_update, var_list=[self.u, self.z, self.z0])
-
         it = stats["iter"]
+        self.gamma = stats['gamma']
+        self.bar_gamma = stats['bar_gamma']
+        self.bar_gamma_pairwise = stats['bar_gamma_pairwise']
+
+        if self.em_optimizer is None:
+            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em")
 
         for epoch in range(self.em_epochs):
-            self.em_loss_update(stats['bar_gamma'], stats['bar_gamma_pairwise'])
-
+            self.em_optimizer.minimize(self.em_loss_update,
+                                         var_list=[self.u, self.z, self.z0],
+                                         tape=tf.GradientTape())
             if self.verbose:
+                cur_loss = tf.get_static_value(self.cooc_loss_update())
                 print("Loss at epoch %d is %.8f" % (
-                    epoch, self.loss_scaled.numpy()))
+                    epoch, cur_loss))
 
-        A, pi = self.A_from_reps_hmmlearn.numpy(), self.pi_from_reps_hmmlearn.numpy()
+        # A, pi = self.A_from_reps_hmmlearn.numpy(), self.pi_from_reps_hmmlearn.numpy()  # TODO
+        A, pi, B_scalars, covars_cooc = self.calculate_all_scalars()
         self.transmat_ = A
         self.startprob_ = pi
 
@@ -1055,7 +1120,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         if gt_AB is not None:
             A, B = gt_AB
-            A_stationary = compute_stationary(A)
+            A_stationary = self.compute_stationary(A)
             theta = A * A_stationary[:, None]
             gt_omega = np.matmul(B.T, np.matmul(theta, B))
 
