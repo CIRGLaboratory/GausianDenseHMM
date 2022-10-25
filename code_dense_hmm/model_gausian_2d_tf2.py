@@ -1086,7 +1086,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         for epoch in range(self.cooc_epochs):
             self.cooc_optimizer.minimize(self.cooc_loss_update,
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
-                                         tape=tf.GradientTape()) 
+                                         tape=tf.GradientTape())
             cur_loss = tf.get_static_value(self.cooc_loss_update())
             losses.append(cur_loss)
 
