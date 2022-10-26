@@ -17,7 +17,7 @@ n_epochs = 83
 n_factors = 81
 
 t = time.localtime()
-RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-v2'
+RESULT_DIR = f'../../data/benchmark_rs/saturation-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-1D'
 
 np.random.seed(2022)
 no_cores = 10
@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     saturation_list = []
 
-    for i in range(100):
+    for i in range(40):
         # Provide new scores
         all_available = provide_all_available(ratings, users)
         all_available['pred'] = provide_ratings(ratings, all_available)
