@@ -77,7 +77,7 @@ def sample_new_scores(available, genre, sample_size, g):  # OK
     available_all_genres_bad = pd.merge(available,
                                     genre.reset_index().rename(columns={'index': 'i_id'}),
                                     how="left", on="i_id")
-    available_genres_bad = available_all_genres_bad.loc[(~available_all_genres_bad[GENRE1]) & (~available_all_genres_bad[GENRE2]), ['u_id', 'i_id', 'pred']]
+    available_genres_bad = available_all_genres_bad.loc[(~available_all_genres_bad[GENRE1]), ['u_id', 'i_id', 'pred']]
     new_scores_bad = available_genres_bad.groupby('u_id').apply(
         lambda df: pd.DataFrame(
             {'i_id': np.random.choice(df.sort_values('pred').i_id.values[-(sample_size * 2):], 2,
