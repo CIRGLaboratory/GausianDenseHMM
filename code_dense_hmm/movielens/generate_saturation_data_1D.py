@@ -115,7 +115,7 @@ if __name__ == "__main__":
 
     saturation_list = []
 
-    for i in range(40):
+    for i in range(100):
         # Provide new scores
         all_available = provide_all_available(ratings, users)
         all_available['pred'] = provide_ratings(ratings, all_available)
