@@ -173,7 +173,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
 if __name__ == "__main__":
     n, d, T = parse_args()
     t = time.localtime()
-    result_dir = f"../../data/benchramk_artificial/n_{n}_T{T}_d{d}_{t.tm_year}-{t.tm_mon}-{t.tm_mday}"
+    result_dir = f"../../data/benchramk_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
     startprob, transmat, means, covars = get_params(d, n)
     Y, X, lengths = sample(n, T, startprob, transmat, means, covars)
@@ -185,6 +185,6 @@ if __name__ == "__main__":
         loglikelihood=ll, omega_loss=loss, accuracy=acc, time=dur
     )
     print(experiment)
-    with open(f"{result_dir}/result.pkl", 'wb') as f:
+    with open(f"{result_dir}/n_{n}_T{T}_d{d}_result.pkl", 'wb') as f:
         pickle.dump(experiment, f)
 
