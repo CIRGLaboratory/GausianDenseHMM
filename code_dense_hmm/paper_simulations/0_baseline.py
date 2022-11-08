@@ -40,7 +40,8 @@ def get_params(d_, n_):
     transmat_ = np.random.uniform(0, 1, (n_, n_))
     transmat_ /= transmat_.sum(axis=1)[:, np.newaxis]
     startprob_ = compute_stationary(transmat_)
-    means_ = np.random.uniform(-50 * n_, 50 * n_, (n_, d_))
+    # means_ = np.random.uniform(-50 * n_, 50 * n_, (n_, d_))
+    means_ = np.concatenate([np.random.uniform(i * 10, (i+1) * 10, (1, d_)) for i in range(n_)])
     covars_ = np.random.uniform(0.5, 4, (n_, d_))
     return startprob_, transmat_, means_, covars_
 
@@ -173,7 +174,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
 if __name__ == "__main__":
     n, d, T = parse_args()
     t = time.localtime()
-    result_dir = f"../../data/benchramk_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}"
+    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
     startprob, transmat, means, covars = get_params(d, n)
     Y, X, lengths = sample(n, T, startprob, transmat, means, covars)
