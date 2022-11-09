@@ -41,7 +41,7 @@ def get_params(d_, n_):
     transmat_ /= transmat_.sum(axis=1)[:, np.newaxis]
     startprob_ = compute_stationary(transmat_)
     # means_ = np.random.uniform(-50 * n_, 50 * n_, (n_, d_))
-    means_ = np.concatenate([np.random.uniform(i * 10, (i+1) * 10, (1, d_)) for i in range(n_)])
+    means_ = np.concatenate([np.random.uniform(2 * i * 10, (2 * i + 1) * 10, (1, d_)) for i in range(n_)])
     covars_ = np.random.uniform(0.5, 1.5, (n_, d_))
     return startprob_, transmat_, means_, covars_
 
