@@ -185,7 +185,7 @@ if __name__ == "__main__":
         n=n, d=d, T=T, Y=Y, X=X,
         loglikelihood=ll, omega_loss=loss, accuracy=acc, time=dur
     )
-    print(experiment)
+    # print(experiment)
     with open(f"{result_dir}/n_{n}_T{T}_d{d}_result.pkl", 'wb') as f:
         pickle.dump(experiment, f)
 
