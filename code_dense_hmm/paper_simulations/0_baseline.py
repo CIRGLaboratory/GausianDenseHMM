@@ -176,7 +176,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
 if __name__ == "__main__":
     n, d, T = parse_args()
     t = time.localtime()
-    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-iiii"
+    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-v"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
     startprob, transmat, means, covars = get_params(d, n)
     Y, X, lengths = sample(n, T, startprob, transmat, means, covars)
