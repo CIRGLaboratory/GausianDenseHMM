@@ -162,7 +162,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
     nodes, splits, Y_disc = provide_nodes(n_, Y_train)
     _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
-    model = hmm.GaussianHMM(n_components=n_, covariance_type='diag', tol=0.01 / n_, n_iter=1000)
+    model = hmm.GaussianHMM(n_components=n_, covariance_type='diag', n_iter=1000)
     start = time.time()
     model.fit(Y_train, lengths_)
     end = time.time()
@@ -176,7 +176,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
 if __name__ == "__main__":
     n, d, T = parse_args()
     t = time.localtime()
-    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-ii"
+    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-i"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
     startprob, transmat, means, covars = get_params(d, n)
     Y, X, lengths = sample(n, T, startprob, transmat, means, covars)
