@@ -26,11 +26,11 @@ np.random.seed(42)
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-n", type=int, default=3,
+    parser.add_argument("-n", type=int, default=5,
                         help="number of hidden states")
     parser.add_argument("-d", type=int, default=1,
                         help="dimensionality of observed values")
-    parser.add_argument("-T", type=int, default=1000,
+    parser.add_argument("-T", type=int, default=100000,
                         help="length of observations")
     args = parser.parse_args()
     return args.n, args.d, args.T
@@ -75,7 +75,8 @@ def relu(x):
     return x * (x > 0)
 
 
-def compute_loss(nodes, splits, n_, omega_gt, means_, covars_, A_):  # TODO rename arguments
+def compute_loss(nodes, splits, n_, omega_gt, means_, covars_, A_):
+    B_scalars = None
     if d == 1:  # popraw wizualnie
         B_scalars_tmp = .5 * (
                 1 + erf((nodes - np.transpose(a=means_)) / (
@@ -161,7 +162,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
     nodes, splits, Y_disc = provide_nodes(n_, Y_train)
     _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
-    model = hmm.GaussianHMM(n_components=n_, covariance_type='full')
+    model = hmm.GaussianHMM(n_components=n_, covariance_type='diag', tol=0.01 / n_, n_iter=1000)
     start = time.time()
     model.fit(Y_train, lengths_)
     end = time.time()
@@ -170,6 +171,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
     acc = (find_permutation(states, X_train)[states] == X_train).mean()
     loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_)
     return ll, loss, acc, end - start
+
 
 if __name__ == "__main__":
     n, d, T = parse_args()
@@ -185,7 +187,6 @@ if __name__ == "__main__":
         n=n, d=d, T=T, Y=Y, X=X,
         loglikelihood=ll, omega_loss=loss, accuracy=acc, time=dur
     )
-    # print(experiment)
+    print(experiment)
     with open(f"{result_dir}/n_{n}_T{T}_d{d}_result.pkl", 'wb') as f:
         pickle.dump(experiment, f)
-
