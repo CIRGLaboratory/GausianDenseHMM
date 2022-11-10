@@ -906,7 +906,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                          var_list=[self.u, self.z, self.z0],
                                          tape=tf.GradientTape())
             if self.verbose:
-                cur_loss = tf.get_static_value(self.cooc_loss_update())
+                cur_loss = tf.get_static_value(self.em_loss_update())
                 print("Loss at epoch %d is %.8f" % (
                     epoch, cur_loss))
 
