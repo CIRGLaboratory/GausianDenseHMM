@@ -21,11 +21,11 @@ np.random.seed(2137)
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-n", type=int, default=5,
+    parser.add_argument("-n", type=int, default=3,
                         help="number of hidden states")
     parser.add_argument("-d", type=int, default=1,
                         help="dimensionality of observed values")
-    parser.add_argument("-T", type=int, default=100000,
+    parser.add_argument("-T", type=int, default=1000,
                         help="length of observations")
     args = parser.parse_args()
     return args.n, args.d, args.T
@@ -173,7 +173,7 @@ def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
     nodes, splits, Y_disc = provide_nodes(n_, Y_train)
     _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
-    model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 5000 * n_, 'cooc_lr': 0.01}, n_dims=d_,
+    model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 1000 * n_, 'cooc_lr': 0.001}, n_dims=d_,
                              verbose=False, early_stopping=True, convergence_tol=0.001)
     start = time.time()
     model.fit_coocs(Y_train, lengths_)
@@ -200,6 +200,7 @@ def eval_multiple(n_, d_, T_):
         hmmlearn=dict(loglikelihood=ll, omega_loss=loss, accuracy=acc, time=dur),
         dense=dict(loglikelihood=ll_dense, omega_loss=loss_dense, accuracy=acc_dense, time=dur_dense)
     )
+    print("DONE")
     return experiment
 
 
@@ -209,7 +210,7 @@ if __name__ == "__main__":
     result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
 
-    experiment = [eval_multiple(n, d, T) for _ in range(20)]
+    experiment = [eval_multiple(n, d, T) for _ in range(10)]
     print(experiment)
     with open(f"{result_dir}/n_{n}_T{T}_d{d}_result_multiple.pkl", 'wb') as f:
         pickle.dump(experiment, f)
