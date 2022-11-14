@@ -10,7 +10,6 @@ from scipy.special import erf
 from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier
 from ssm.util import find_permutation
-from icecream import ic
 
 np.random.seed(2137)
 
@@ -210,7 +209,6 @@ if __name__ == "__main__":
     result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
 
-    experiment = [ic(n, d, T) for _ in range(20)]
     experiment = [eval_multiple(n, d, T) for _ in range(20)]
     print(experiment)
     with open(f"{result_dir}/n_{n}_T{T}_d{d}_result_multiple.pkl", 'wb') as f:
