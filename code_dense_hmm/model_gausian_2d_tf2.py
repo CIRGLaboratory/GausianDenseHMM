@@ -705,12 +705,14 @@ class GaussianDenseHMM(GammaGaussianHMM):
             elif self.n_features == 2:
                 B_scalars_tmp = None
                 if self.covariance_type == "full":
-                    mvn = tfp.distributions.MultivariateNormalTriL(self.means_cooc, self.covars_cooc)
-                    mvn_sample = mvn.sample(100000, seed=2022)
-                    B_scalars_tmp = tf.map_fn(
-                        lambda n: tf.reduce_mean(
+                    def map_B(n):
+                        res = tf.reduce_mean(
                             input_tensor=tf.cast(tf.reduce_all(input_tensor=mvn_sample <= n, axis=-1), mvn.dtype),
-                            axis=0), self.discrete_nodes)
+                            axis=0)
+                        return res
+                    mvn = tfp.distributions.MultivariateNormalTriL(self.means_cooc, covars_cooc)
+                    mvn_sample = mvn.sample(100000, seed=2022)
+                    B_scalars_tmp = tf.map_fn(map_B, self.discrete_nodes)
                 elif self.covariance_type == "diag":
                     B_scalars_tmp = tf.reduce_prod(input_tensor=.5 * (
                             1 + tf.math.erf((tf.expand_dims(self.discrete_nodes, axis=-1) - tf.expand_dims(
@@ -752,7 +754,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         pi_log_ker = tf.identity(pi_scalars, name='pi_log_ker')
 
         mvn = tfp.distributions.MultivariateNormalTriL(self.means_, self.covars_)
-        B_scalars = tf.map_fn(lambda x: mvn.prob(x), X, name="B_scalars_em")
+        B_scalars = tf.map_fn(mvn.prob, X, name="B_scalars_em")
         if self.kernel == 'exp' or self.kernel == tf.exp:
             B_log_ker = tf.math.log(B_scalars, name='B_log_ker_em')
         else:
@@ -813,39 +815,41 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 "Given unsupported optimization scheme! Supported are: %s" % str(self.SUPPORTED_OPT_SCHEMES))
 
         # Trainables in both fit methods
-        u = tf.Variable(name="u", dtype=tf.float32, shape=[self.n_components, self.l_uz],
-                        initial_value=self.initializer(0., 1.)(shape=(self.n_components, self.l_uz)),
+        u = tf.Variable(name="u", dtype=tf.float64, shape=[self.n_components, self.l_uz],
+                        initial_value=self.initializer(0., 1.)(shape=(self.n_components, self.l_uz)).astype('float64'),
                         trainable=('u' in self.trainables))
 
-        z = tf.Variable(name="z", dtype=tf.float32, shape=[self.l_uz, self.n_components],
-                        initial_value=self.initializer(0., 1.)(shape=(self.l_uz, self.n_components)),
+        z = tf.Variable(name="z", dtype=tf.float64, shape=[self.l_uz, self.n_components],
+                        initial_value=self.initializer(0., 1.)(shape=(self.l_uz, self.n_components)).astype('float64'),
                         trainable=('z' in self.trainables and
                                    ('z0' not in self.trainables
                                     or 'zz0' in self.trainables)))
-        z0 = tf.Variable(name="z0", dtype=tf.float32, shape=[self.l_uz, 1],
-                         initial_value=self.initializer(0., 1.)(shape=(self.l_uz, 1)),
+        z0 = tf.Variable(name="z0", dtype=tf.float64, shape=[self.l_uz, 1],
+                         initial_value=self.initializer(0., 1.)(shape=(self.l_uz, 1)).astype('float64'),
                          trainable=('z0' in self.trainables))
 
         self.u, self.z, self.z0 = u, z, z0
 
         if 'cooc' in self.opt_schemes:
             # Additional trainables in fit_cooc
-            means_cooc = tf.Variable(name="means_cooc", dtype=tf.float32,
+            means_cooc = tf.Variable(name="means_cooc", dtype=tf.float64,
                                      shape=[self.n_components, self.n_features],
-                                     initial_value=self.means_,
+                                     initial_value=self.means_.astype('float64'),
                                      trainable=('m' in self.trainables))
             if self.covariance_type == "full":
-                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float32,
+                init_val = np.triu(self._covars_)
+                init_val = np.transpose(init_val[init_val != 0]).reshape(self.n_components,
+                                                                         (self.n_features * (self.n_features + 1)) // 2)
+                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
                                          shape=[self.n_components, (self.n_features * (self.n_features + 1)) // 2],
-                                         initial_value=np.ones(
-                                             (self.n_components, (self.n_features * (self.n_features + 1)) // 2)),
+                                         initial_value=init_val.astype('float64'),
                                          trainable=('c' in self.trainables))
 
 
             elif self.covariance_type == "diag":
-                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float32,
+                covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
                                          shape=[self.n_components, self.n_features],
-                                         initial_value=np.ones((self.n_components, self.n_features)),
+                                         initial_value=self._covars_.astype('float64'),
                                          trainable=('c' in self.trainables))
 
             self.means_cooc = means_cooc
@@ -1052,7 +1056,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             gt_omega = np.matmul(B.T, np.matmul(theta, B))
 
         gt_omega = gt_omega_emp if gt_omega is None else gt_omega
-        self.omega_gt = gt_omega.astype('float32')
+        self.omega_gt = gt_omega.astype('float64')
         log_dict = self._fit_coocs(X, lengths, val_lengths)
 
         log_dict['cooc_logprobs'] = self.score_individual_sequences(X, lengths)[0]
@@ -1063,13 +1067,20 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
     def _init_nodes(self, X, dtree):
         splits = np.concatenate([dtree.tree_.feature.reshape(-1, 1), dtree.tree_.threshold.reshape(-1, 1)], axis=1)
-        splits = np.concatenate([splits, np.array([[i, fun(X[:, i])] for i, fun in itertools.product(range(X.shape[1]), [lambda x: np.min(x) - 1e-3, lambda x: np.max(x) + 1e-3])])])
+
+        def _min(x):
+            return np.min(x) - 1e-1
+
+        def _max(x):
+            return np.max(x) + 1e+1
+
+        splits = np.concatenate([splits, np.array([[i, fun(X[:, i])] for i, fun in itertools.product(range(X.shape[1]), [_min, _max])])])
         splits = splits[splits[:, 0] >= 0]
 
         nodes_x = [np.sort(splits[splits[:, 0] == float(i), 1]) for i in np.unique(splits[:, 0])]
         nodes = np.array([t for t in itertools.product(*nodes_x)])
         self.splits = nodes_x  # number  of splits  on each axis
-        self.discrete_nodes = nodes.astype('float32')
+        self.discrete_nodes = nodes.astype('float64')
         self.discrete_observables = [n.shape[0] - 1 for n in nodes_x]
 
     def _to_discrete(self, X):
@@ -1088,7 +1099,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
                                          tape=tf.GradientTape())
             if epoch % 100 == 0:
-                cur_loss = tf.get_static_value(self.cooc_loss_update())
+                cur_loss = tf.get_static_value(self.loss_cooc)
                 losses.append(cur_loss)  # TODO: can it stay like this??
                 # A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
                 # A_stat = self.compute_stationary(A, verbose=False)
