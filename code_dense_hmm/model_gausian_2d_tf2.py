@@ -1121,7 +1121,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
                 self.transmat_ = A
                 self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
-                self._covars_ = covars_c if np.isnan(  # TODO: is the square here needed?
+                if self.covariance_type == 'diag':
+                    covars_c = np.array(list(map(np.diag, covars_c)))
+                self.covars_ = covars_c if np.isnan(  # TODO: is the square here needed?
                     covars_c).sum() == 0 else self._covars_  # TODO: fix! It depends on covariance type!
                 self.startprob_ = A_stat
                 # z, z0, u = self.z.numpy(), self.z0.numpy(), self.u.numpy()
@@ -1149,10 +1151,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
         means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
 
         ic(covars_c)
-
+        if self.covariance_type == 'diag':
+            covars_c = np.array(list(map(np.diag, covars_c)))
         self.transmat_ = A
         self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
-        self._covars_ = covars_c if np.isnan(  # TODO: is the square here needed?
+        self.covars_ = covars_c if np.isnan(  # TODO: is the square here needed?
             covars_c).sum() == 0 else self._covars_  # TODO: fix! It depends on covariance type!
         self.startprob_ = A_stat
         self._check()
