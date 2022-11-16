@@ -191,7 +191,7 @@ def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
     ll = model.score(Y_train, lengths_)
     states = model.predict(Y_train, lengths_)
     acc = (find_permutation(states, X_train)[states] == X_train).mean()
-    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_), model.logging_monitor.loss[-1]
+    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_), model.loss_cooc
     return ll, loss, acc, end - start
 
 
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
 
-    experiment = [eval_multiple(n, d, T) for _ in range(10)]
+    experiment = [eval_multiple(n, d, T) for _ in range(1)]  # TODO
     print(experiment)
     with open(f"{result_dir}/n_{n}_T{T}_d{d}_result_multiple.pkl", 'wb') as f:
         pickle.dump(experiment, f)
