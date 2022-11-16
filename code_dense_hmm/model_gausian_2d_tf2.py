@@ -790,8 +790,6 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         A_from_reps_hmmlearn, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
 
-        ic(tf.get_static_value(A_from_reps_hmmlearn))
-
         A_stationary = self.compute_stationary(A_from_reps_hmmlearn, verbose=False)
         omega_gt = self.omega_gt
 
@@ -853,7 +851,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
 
             elif self.covariance_type == "diag":
-                init_val = np.ones((self.n_components, self.n_features))
+                init_val = np.sqrt(self._covars_)
                 covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
                                          shape=[self.n_components, self.n_features],
                                          initial_value=init_val.astype('float64'),
