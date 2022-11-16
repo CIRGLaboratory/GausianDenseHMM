@@ -900,7 +900,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         # Optimizer step
         if self.em_optimizer is None:
-            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em")
+            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em", clipvalue=0.1)
 
         it = stats["iter"]
         self.gamma = stats['gamma']
@@ -908,7 +908,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.bar_gamma_pairwise = stats['bar_gamma_pairwise']
 
         if self.em_optimizer is None:
-            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em")
+            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em", clipvalue=0.1)
 
         for epoch in range(self.em_epochs):
             self.em_optimizer.minimize(self.em_loss_update,
