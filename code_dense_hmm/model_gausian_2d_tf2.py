@@ -758,10 +758,10 @@ class GaussianDenseHMM(GammaGaussianHMM):
         mvn = tfp.distributions.MultivariateNormalTriL(self.means_, self.covars_)
         B_scalars = tf.map_fn(mvn.prob, X, name="B_scalars_em")
         if self.kernel == 'exp' or self.kernel == tf.exp:
-            B_log_ker = tf.math.log(B_scalars, name='B_log_ker_em')
+            B_log_ker = tf.math.log(B_scalars + 1e-8, name='B_log_ker_em')
         else:
             B_scalars_ker = B_scalars
-            B_log_ker = tf.math.log(B_scalars_ker, name='B_log_ker_em')
+            B_log_ker = tf.math.log(B_scalars_ker + 1e-8, name='B_log_ker_em')
 
         # Losses
         bar_gamma_1 = bar_gamma[0, :]
