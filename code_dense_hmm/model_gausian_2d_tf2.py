@@ -790,8 +790,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         A_from_reps_hmmlearn, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
 
-        ic(A_from_reps_hmmlearn)
-        
+        # ic(A_from_reps_hmmlearn)
+
         A_stationary = self.compute_stationary(A_from_reps_hmmlearn, verbose=False)
         omega_gt = self.omega_gt
 
@@ -841,10 +841,11 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                      initial_value=self.means_.astype('float64'),
                                      trainable=('m' in self.trainables))
             if self.covariance_type == "full":
-                # init_val = np.sqrt(np.triu(self._covars_))
-                # init_val = np.transpose(init_val[init_val != 0]).reshape(self.n_components,
-                #                                                          (self.n_features * (self.n_features + 1)) // 2)
-                init_val = np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2))
+                init_val = np.sqrt(np.triu(self._covars_))
+                init_val = np.transpose(init_val[init_val != 0]).reshape(self.n_components,
+                                                                         (self.n_features * (self.n_features + 1)) // 2)
+                init_val = init_val / init_val.mean()
+                # init_val = np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2))
                 covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
                                          shape=[self.n_components, (self.n_features * (self.n_features + 1)) // 2],
                                          initial_value=init_val.astype('float64'),
