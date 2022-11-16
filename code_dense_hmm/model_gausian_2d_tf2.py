@@ -683,8 +683,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
         pi_scalars = tf.matmul(self.u, self.z0, name="pi_scalars")
 
         # Apply kernel  https://cs231n.github.io/linear-classify/#softmax
-        A_from_reps = tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)) / (tf.reduce_sum(tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)), 0, keepdims=True) + 1e-6)  # tf.math.softmax(A_scalars, axis=0)
-        pi_from_reps = tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)) / (tf.reduce_sum(tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)), 0, keepdims=True) + 1e-6)  # tf.math.softmax(pi_scalars, axis=0)
+        A_from_reps = tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)) / tf.reduce_sum(tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)), 0, keepdims=True)  # tf.math.softmax(A_scalars, axis=0)
+        pi_from_reps = tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)) / tf.reduce_sum(tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)), 0, keepdims=True)  # tf.math.softmax(pi_scalars, axis=0)
 
         # hmmlearn library uses a different convention for the shapes of the matrices
         A_from_reps_hmmlearn = tf.transpose(a=A_from_reps, name='A_from_reps')
