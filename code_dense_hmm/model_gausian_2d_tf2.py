@@ -1106,7 +1106,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             self.cooc_optimizer = tf.keras.optimizers.Adam(learning_rate=self.cooc_lr, name="adam_cooc")
 
         for epoch in range(self.cooc_epochs):
-            # ic(epoch)
+            ic(self.get_representations())
             self.cooc_optimizer.minimize(self.cooc_loss_update,
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
                                          tape=tf.GradientTape())
