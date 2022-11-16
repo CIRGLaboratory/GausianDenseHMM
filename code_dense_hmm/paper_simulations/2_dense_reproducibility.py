@@ -191,7 +191,7 @@ def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
     ll = model.score(Y_train, lengths_)
     states = model.predict(Y_train, lengths_)
     acc = (find_permutation(states, X_train)[states] == X_train).mean()
-    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_), model.loss_cooc.numpy()
+    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_), model.loss_cooc
     return ll, loss, acc, end - start
 
 
