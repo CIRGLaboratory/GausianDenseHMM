@@ -839,7 +839,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                      initial_value=self.means_.astype('float64'),
                                      trainable=('m' in self.trainables))
             if self.covariance_type == "full":
-                init_val = np.triu(self._covars_)
+                init_val = np.sqrt(np.triu(self._covars_))
                 init_val = np.transpose(init_val[init_val != 0]).reshape(self.n_components,
                                                                          (self.n_features * (self.n_features + 1)) // 2)
                 covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
