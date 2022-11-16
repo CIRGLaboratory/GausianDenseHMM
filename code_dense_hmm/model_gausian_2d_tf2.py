@@ -683,8 +683,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
         pi_scalars = tf.matmul(self.u, self.z0, name="pi_scalars")
 
         # Apply kernel  https://cs231n.github.io/linear-classify/#softmax
-        A_from_reps = tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)) / tf.reduce_sum(tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)), 0, keepdims=True)  # tf.math.softmax(A_scalars, axis=0)
-        pi_from_reps = tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)) / tf.reduce_sum(tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)), 0, keepdims=True)  # tf.math.softmax(pi_scalars, axis=0)
+        A_from_reps = tf.math.softmax(A_scalars, axis=0)  #  tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)) / tf.reduce_sum(tf.exp(A_scalars - tf.math.reduce_max(A_scalars, axis=0)), 0, keepdims=True)
+        pi_from_reps = tf.math.softmax(pi_scalars, axis=0)  # tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)) / tf.reduce_sum(tf.exp(pi_scalars - tf.math.reduce_max(pi_scalars, axis=0)), 0, keepdims=True)
 
         # hmmlearn library uses a different convention for the shapes of the matrices
         A_from_reps_hmmlearn = tf.transpose(a=A_from_reps, name='A_from_reps')
@@ -758,10 +758,10 @@ class GaussianDenseHMM(GammaGaussianHMM):
         mvn = tfp.distributions.MultivariateNormalTriL(self.means_, self.covars_)
         B_scalars = tf.map_fn(mvn.prob, X, name="B_scalars_em")
         if self.kernel == 'exp' or self.kernel == tf.exp:
-            B_log_ker = tf.math.log(B_scalars + 1e-8, name='B_log_ker_em')
+            B_log_ker = tf.math.log(B_scalars + 1e-10, name='B_log_ker_em')
         else:
             B_scalars_ker = B_scalars
-            B_log_ker = tf.math.log(B_scalars_ker + 1e-8, name='B_log_ker_em')
+            B_log_ker = tf.math.log(B_scalars_ker + 1e-10, name='B_log_ker_em')
 
         # Losses
         bar_gamma_1 = bar_gamma[0, :]
@@ -1050,8 +1050,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
     def fit_coocs(self, X, lengths, val=None, val_lengths=None, gt_AB=None):
         X, n_seqs, max_seqlen = self._init(X, lengths)
 
-        ic(self._covars_)
-        ic(self.covars_)
+        # ic(self._covars_)
+        # ic(self.covars_)
 
         gt_omega = None
         freqs, gt_omega_emp = empirical_coocs(self._to_discrete(X), np.prod(self.discrete_observables), lengths=lengths)
@@ -1099,30 +1099,30 @@ class GaussianDenseHMM(GammaGaussianHMM):
     def _fit_coocs(self, X, lengths, val_lengths=None):
         losses = []
 
-        ic(self._covars_)
-        ic(self.covars_)
+        # ic(self._covars_)
+        # ic(self.covars_)
 
         if self.cooc_optimizer is None:
             self.cooc_optimizer = tf.keras.optimizers.Adam(learning_rate=self.cooc_lr, name="adam_cooc")
 
         for epoch in range(self.cooc_epochs):
-            ic(self.get_representations())
-            ic(self.covars_vec.numpy())
-            ic(self.means_cooc.numpy())
+            # ic(self.get_representations())
+            # ic(self.covars_vec.numpy())
+            # ic(self.means_cooc.numpy())
             self.cooc_optimizer.minimize(self.cooc_loss_update,
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
                                          tape=tf.GradientTape())
-            # ic(self._covars_)
-            # ic(self.covars_)
+            # # ic(self._covars_)
+            # # ic(self.covars_)
             if epoch % 1000 == 0:
                 cur_loss = tf.get_static_value(self.loss_cooc)
                 losses.append(cur_loss)  # TODO: can it stay like this??
-                ic(cur_loss)
+                # ic(cur_loss)
                 A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
                 A_stat = self.compute_stationary(A, verbose=False)
                 means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
 
-                ic(covars_c)
+                # ic(covars_c)
 
                 self.transmat_ = A
                 self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
@@ -1149,13 +1149,13 @@ class GaussianDenseHMM(GammaGaussianHMM):
         theta = A * A_stat[:, None]
         learned_omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
 
-        ic(covars_cooc)
-        ic(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
-        ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1)))))
+        # ic(covars_cooc)
+        # ic(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
+        # ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1)))))
 
         means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
 
-        ic(covars_c)
+        # ic(covars_c)
         if self.covariance_type == 'diag':
             covars_c = np.array(list(map(np.diag, covars_c)))
         self.transmat_ = A
