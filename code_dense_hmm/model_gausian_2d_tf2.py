@@ -1142,7 +1142,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         ic(covars_cooc)
         ic(tf.matmul(covars_cooc))
-        ic(tf.get_static_value(tf.matmul(covars_cooc)))
+        ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc))))
 
         means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc)))
         if self.covariance_type == 'diag':
