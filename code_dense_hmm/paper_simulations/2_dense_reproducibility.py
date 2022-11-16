@@ -23,7 +23,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-n", type=int, default=3,
                         help="number of hidden states")
-    parser.add_argument("-d", type=int, default=1,
+    parser.add_argument("-d", type=int, default=2,
                         help="dimensionality of observed values")
     parser.add_argument("-T", type=int, default=1000,
                         help="length of observations")
@@ -80,10 +80,15 @@ def compute_loss(nodes, splits, n_, omega_gt, means_, covars_, A_):
 
         B_scalars = np.transpose(a=B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :])
     if d == 2:
-        B_scalars_tmp = np.prod(.5 * (
-                1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
-            np.transpose(a=means_), axis=0)) / (
-                                relu(covars_) + 1e-10) / np.sqrt(2))), axis=1)
+        B_scalars_tmp = np.prod(input_tensor=.5 * (
+                            1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
+                        np.transpose(means_), axis=0)) / (relu(np.expand_dims(np.transpose(covars_),
+                                                                              axis=0)) + 1e-10) / np.sqrt(2))), axis=1)
+
+            # np.prod(.5 * (
+            #     1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(np.transpose(a=means_), axis=0)) /
+            #             (relu(np.expand_dims(np.transpose(np.array(list(map(lambda x: np.diag(np.array(x)), covars_.tolist())))), axis=0)) + 1e-10) /
+            #             np.sqrt(2))), axis=1)
         B_scalars_tmp_wide = np.reshape(B_scalars_tmp, (*[n.shape[0] for n in splits], n_))
         B_scalars = np.transpose(a=np.reshape(
             B_scalars_tmp_wide[:-1, 1:, :] - B_scalars_tmp_wide[:-1, :-1, :] - B_scalars_tmp_wide[1:, 1:,
@@ -158,7 +163,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
     nodes, splits, Y_disc = provide_nodes(n_, Y_train)
     _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
-    model = hmm.GaussianHMM(n_components=n_, covariance_type='full', n_iter=2000 * n_, tol=0.01)
+    model = hmm.GaussianHMM(n_components=n_, covariance_type='diag', n_iter=2000 * n_, tol=0.01)
     start = time.time()
     model.fit(Y_train, lengths_)
     end = time.time()
@@ -174,7 +179,7 @@ def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
     _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
     model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 1000 * n_, 'cooc_lr': 0.001}, n_dims=d_,
-                             verbose=False, early_stopping=True, convergence_tol=0.001)
+                             verbose=False, early_stopping=True, convergence_tol=0.001, covariance_type='diag')
     start = time.time()
     model.fit_coocs(Y_train, lengths_)
     end = time.time()
