@@ -1115,7 +1115,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
                 A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
                 A_stat = self.compute_stationary(A, verbose=False)
-                means_c, covars_cooc = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
+                means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
 
                 ic(covars_c)
 
