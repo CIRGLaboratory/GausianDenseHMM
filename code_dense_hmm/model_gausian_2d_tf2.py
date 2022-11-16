@@ -1047,8 +1047,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
     def fit_coocs(self, X, lengths, val=None, val_lengths=None, gt_AB=None):
         X, n_seqs, max_seqlen = self._init(X, lengths)
 
-        # ic(self._covars_)
-        # ic(self.covars_)
+        ic(self._covars_)
+        ic(self.covars_)
 
         gt_omega = None
         freqs, gt_omega_emp = empirical_coocs(self._to_discrete(X), np.prod(self.discrete_observables), lengths=lengths)
@@ -1096,19 +1096,19 @@ class GaussianDenseHMM(GammaGaussianHMM):
     def _fit_coocs(self, X, lengths, val_lengths=None):
         losses = []
 
-        # ic(self._covars_)
-        # ic(self.covars_)
+        ic(self._covars_)
+        ic(self.covars_)
 
         if self.cooc_optimizer is None:
             self.cooc_optimizer = tf.keras.optimizers.Adam(learning_rate=self.cooc_lr, name="adam_cooc")
 
         for epoch in range(self.cooc_epochs):
-            # ic(epoch)
+            ic(epoch)
             self.cooc_optimizer.minimize(self.cooc_loss_update,
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
                                          tape=tf.GradientTape())
-            # # ic(self._covars_)
-            # # ic(self.covars_)
+            # ic(self._covars_)
+            # ic(self.covars_)
             if epoch % 100 == 0:
                 cur_loss = tf.get_static_value(self.loss_cooc)
                 losses.append(cur_loss)  # TODO: can it stay like this??
@@ -1119,9 +1119,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
                     tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
                 if self.covariance_type == 'diag':
                     covars_c = np.array(list(map(np.diag, covars_c)))
-                    # # ic(covars_c)
+                    # ic(covars_c)
 
-                # ic(covars_c)
+                ic(covars_c)
 
                 self.transmat_ = A
                 self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
@@ -1146,16 +1146,16 @@ class GaussianDenseHMM(GammaGaussianHMM):
         theta = A * A_stat[:, None]
         learned_omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
 
-        # ic(covars_cooc)
-        # ic(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
-        # ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1)))))
+        ic(covars_cooc)
+        ic(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
+        ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1)))))
 
         means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
         if self.covariance_type == 'diag':
             covars_c = np.array(list(map(np.diag, covars_c)))
-            # ic(covars_c)
+            ic(covars_c)
 
-        # ic(covars_c)
+        ic(covars_c)
 
         self.transmat_ = A
         self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
