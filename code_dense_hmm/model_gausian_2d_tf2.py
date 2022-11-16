@@ -900,7 +900,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         # Optimizer step
         if self.em_optimizer is None:
-            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em", clipvalue=0.1)
+            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em", clipvalue=1.0)
 
         it = stats["iter"]
         self.gamma = stats['gamma']
@@ -908,7 +908,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.bar_gamma_pairwise = stats['bar_gamma_pairwise']
 
         if self.em_optimizer is None:
-            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em", clipvalue=0.1)
+            self.em_optimizer = tf.keras.optimizers.Adam(learning_rate=self.em_lr, name="adam_em", clipvalue=1.0)
 
         for epoch in range(self.em_epochs):
             self.em_optimizer.minimize(self.em_loss_update,
@@ -1117,7 +1117,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             if epoch % 1000 == 0:
                 cur_loss = tf.get_static_value(self.loss_cooc)
                 losses.append(cur_loss)  # TODO: can it stay like this??
-
+                ic(cur_loss)
                 A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
                 A_stat = self.compute_stationary(A, verbose=False)
                 means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
