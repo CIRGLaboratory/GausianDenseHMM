@@ -790,7 +790,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         A_from_reps_hmmlearn, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
 
-        # ic(A_from_reps_hmmlearn)
+        ic(tf.get_static_value(A_from_reps_hmmlearn))
 
         A_stationary = self.compute_stationary(A_from_reps_hmmlearn, verbose=False)
         omega_gt = self.omega_gt
