@@ -84,7 +84,7 @@ def compute_loss(nodes, splits, n_, omega_gt, means_, covars_, A_):
                 1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
             np.transpose(a=means_), axis=0)) / (
                                 relu(covars_) + 1e-10) / np.sqrt(2))), axis=1)
-        
+
         # B_scalars_tmp = np.prod(input_tensor=.5 * (
         #                     1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
         #                 np.transpose(means_), axis=0)) / (relu(np.expand_dims(np.transpose(covars_),
@@ -175,7 +175,7 @@ def eval_model(n_, Y_train, X_train, lengths_):
     ll = model.score(Y_train, lengths_)
     states = model.predict(Y_train, lengths_)
     acc = (find_permutation(states, X_train)[states] == X_train).mean()
-    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_)
+    loss = 0  # compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_)
     return ll, loss, acc, end - start
 
 
@@ -191,7 +191,7 @@ def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
     ll = model.score(Y_train, lengths_)
     states = model.predict(Y_train, lengths_)
     acc = (find_permutation(states, X_train)[states] == X_train).mean()
-    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_)
+    loss = 0  #  compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_)
     return ll, loss, acc, end - start
 
 
