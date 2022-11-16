@@ -694,7 +694,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
             if self.covariance_type == "full":
                 L = tfp.math.fill_triangular(self.covars_vec, name="L")
-                covars_cooc = tf.matmul(L, tf.transpose(a=L, perm=[0, 2, 1]), name="covars_direct")
+                covars_cooc = L + tf.transpose(a=L, perm=[0, 2, 1])
             elif self.covariance_type == "diag":
                 covars_cooc = tf.linalg.diag(self.covars_vec)
 
@@ -1103,23 +1103,19 @@ class GaussianDenseHMM(GammaGaussianHMM):
             self.cooc_optimizer = tf.keras.optimizers.Adam(learning_rate=self.cooc_lr, name="adam_cooc")
 
         for epoch in range(self.cooc_epochs):
-            ic(epoch)
+            # ic(epoch)
             self.cooc_optimizer.minimize(self.cooc_loss_update,
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
                                          tape=tf.GradientTape())
             # ic(self._covars_)
             # ic(self.covars_)
-            if epoch % 100 == 0:
+            if epoch % 1000 == 0:
                 cur_loss = tf.get_static_value(self.loss_cooc)
                 losses.append(cur_loss)  # TODO: can it stay like this??
 
                 A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
                 A_stat = self.compute_stationary(A, verbose=False)
-                means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(
-                    tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
-                if self.covariance_type == 'diag':
-                    covars_c = np.array(list(map(np.diag, covars_c)))
-                    # ic(covars_c)
+                means_c, covars_cooc = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
 
                 ic(covars_c)
 
@@ -1151,9 +1147,6 @@ class GaussianDenseHMM(GammaGaussianHMM):
         ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1)))))
 
         means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
-        if self.covariance_type == 'diag':
-            covars_c = np.array(list(map(np.diag, covars_c)))
-            ic(covars_c)
 
         ic(covars_c)
 
