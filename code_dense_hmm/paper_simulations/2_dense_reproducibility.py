@@ -80,10 +80,15 @@ def compute_loss(nodes, splits, n_, omega_gt, means_, covars_, A_):
 
         B_scalars = np.transpose(a=B_scalars_tmp[1:, :] - B_scalars_tmp[:-1, :])
     if d == 2:
-        B_scalars_tmp = np.prod(input_tensor=.5 * (
-                            1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
-                        np.transpose(means_), axis=0)) / (relu(np.expand_dims(np.transpose(covars_),
-                                                                              axis=0)) + 1e-10) / np.sqrt(2))), axis=1)
+        B_scalars_tmp = np.prod(.5 * (
+                1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
+            np.transpose(a=means_), axis=0)) / (
+                                relu(covars_) + 1e-10) / np.sqrt(2))), axis=1)
+        
+        # B_scalars_tmp = np.prod(input_tensor=.5 * (
+        #                     1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(
+        #                 np.transpose(means_), axis=0)) / (relu(np.expand_dims(np.transpose(covars_),
+        #                                                                       axis=0)) + 1e-10) / np.sqrt(2))), axis=1)
 
             # np.prod(.5 * (
             #     1 + erf((np.expand_dims(nodes, axis=-1) - np.expand_dims(np.transpose(a=means_), axis=0)) /
