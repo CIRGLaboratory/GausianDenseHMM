@@ -798,6 +798,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
         self.omega = omega
         if self.loss_type == "square":
             loss_cooc = tf.reduce_sum(input_tensor=tf.square(omega_gt - omega))
+        elif self.loss_type == "abs":
+            loss_cooc = tf.reduce_sum(input_tensor=tf.abs(omega_gt - omega))
         elif self.loss_type == "square_log":
             loss_cooc = tf.reduce_sum(input_tensor=tf.square(tf.math.log(omega_gt) - tf.math.log(omega)))
         else:
@@ -1141,7 +1143,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 self.logging_monitor.report(self.score(X, lengths), loss=cur_loss)
                 if self.verbose:
                     print(cur_loss)
-                if prev_loss - cur_loss < 1e-5:
+                if prev_loss - cur_loss < 1e-6:
                     break
 
         log_dict = {}
