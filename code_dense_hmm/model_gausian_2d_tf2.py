@@ -842,7 +842,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 # init_val = np.sqrt(np.triu(self._covars_))
                 # init_val = np.transpose(init_val[init_val != 0]).reshape(self.n_components,
                 #                                                          (self.n_features * (self.n_features + 1)) // 2)
-                init_val = np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2)) * self.min_covar
+                init_val = np.ones((self.n_components, (self.n_features * (self.n_features + 1)) // 2))
                 covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
                                          shape=[self.n_components, (self.n_features * (self.n_features + 1)) // 2],
                                          initial_value=init_val.astype('float64'),
@@ -850,7 +850,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
 
             elif self.covariance_type == "diag":
-                init_val = np.ones((self.n_components, self.n_features)) * self.min_covar
+                init_val = np.ones((self.n_components, self.n_features))
                 covars_vec = tf.Variable(name="covars_cooc", dtype=tf.float64,
                                          shape=[self.n_components, self.n_features],
                                          initial_value=init_val.astype('float64'),
