@@ -1115,7 +1115,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
             # # ic(self._covars_)
             # # ic(self.covars_)
             if epoch % 1000 == 0:
-                cur_loss = tf.get_static_value(self.loss_cooc)
+                cur_loss = tf.get_static_value(self.cooc_loss_update())
                 losses.append(cur_loss)  # TODO: can it stay like this??
                 # ic(cur_loss)
                 A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()

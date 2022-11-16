@@ -183,7 +183,7 @@ def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
     nodes, splits, Y_disc = provide_nodes(n_, Y_train)
     _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
-    model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 1000 * n_, 'cooc_lr': 0.001, 'loss_type': 'square'}, n_dims=d_,
+    model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 10000 * n_, 'cooc_lr': 0.002, 'loss_type': 'square'}, n_dims=d_,
                              verbose=True, early_stopping=True, convergence_tol=0.01, covariance_type='diag')
     start = time.time()
     model.fit_coocs(Y_train, lengths_)
