@@ -1141,10 +1141,10 @@ class GaussianDenseHMM(GammaGaussianHMM):
         learned_omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
 
         ic(covars_cooc)
-        ic(tf.matmul(covars_cooc, tf.transpose(covars_cooc)))
-        ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc))))
+        ic(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(1, 0, 2))))
+        ic(tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(1, 0, 2)))))
 
-        means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc)))
+        means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(1, 0, 2))))
         if self.covariance_type == 'diag':
             covars_c = np.array(list(map(np.diag, covars_c)))
             ic(covars_c)
