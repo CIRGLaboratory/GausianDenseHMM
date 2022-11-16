@@ -1114,8 +1114,9 @@ class GaussianDenseHMM(GammaGaussianHMM):
                                          tape=tf.GradientTape())
             # # ic(self._covars_)
             # # ic(self.covars_)
+            cur_loss = 1
             if epoch % 1000 == 0:
-                cur_loss = tf.get_static_value(self.cooc_loss_update())
+                prev_loss, cur_loss = cur_loss, tf.get_static_value(self.cooc_loss_update())
                 losses.append(cur_loss)  # TODO: can it stay like this??
                 # ic(cur_loss)
                 A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
@@ -1140,6 +1141,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 self.logging_monitor.report(self.score(X, lengths), loss=cur_loss)
                 if self.verbose:
                     print(cur_loss)
+                if prev_loss - cur_loss < 1e-5:
+                    break
 
         log_dict = {}
         log_dict['cooc_losses'] = losses
