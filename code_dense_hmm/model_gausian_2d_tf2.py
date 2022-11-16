@@ -1107,21 +1107,27 @@ class GaussianDenseHMM(GammaGaussianHMM):
             self.cooc_optimizer.minimize(self.cooc_loss_update,
                                          var_list=[self.u, self.z, self.means_cooc, self.covars_vec],
                                          tape=tf.GradientTape())
-            ic(self._covars_)
-            ic(self.covars_)
+            # ic(self._covars_)
+            # ic(self.covars_)
             if epoch % 100 == 0:
                 cur_loss = tf.get_static_value(self.loss_cooc)
                 losses.append(cur_loss)  # TODO: can it stay like this??
-                # A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
-                # A_stat = self.compute_stationary(A, verbose=False)
-                # means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(covars_cooc)
-                # theta = A * A_stat[:, None]
-                # omega = tf.matmul(tf.transpose(a=B_scalars), tf.matmul(theta, B_scalars))
-                # self.transmat_ = A
-                # self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
-                # self._covars_ = np.square(covars_c) if np.isnan(
-                #     covars_c).sum() == 0 else self._covars_
-                # self.startprob_ = A_stat
+
+                A, pi_from_reps_hmmlearn, B_scalars, covars_cooc = self.calculate_all_scalars()
+                A_stat = self.compute_stationary(A, verbose=False)
+                means_c, covars_c = self.means_cooc.numpy(), tf.get_static_value(
+                    tf.matmul(covars_cooc, tf.transpose(covars_cooc, perm=(0, 2, 1))))
+                if self.covariance_type == 'diag':
+                    covars_c = np.array(list(map(np.diag, covars_c)))
+                    # ic(covars_c)
+
+                ic(covars_c)
+
+                self.transmat_ = A
+                self.means_ = means_c if np.isnan(means_c).sum() == 0 else self.means_
+                self._covars_ = covars_c if np.isnan(  # TODO: is the square here needed?
+                    covars_c).sum() == 0 else self._covars_  # TODO: fix! It depends on covariance type!
+                self.startprob_ = A_stat
                 # z, z0, u = self.z.numpy(), self.z0.numpy(), self.u.numpy()
                 # self.logging_monitor.report(self.score(X, lengths), # None,  #
                 #                             preds=self.predict(X, lengths),
