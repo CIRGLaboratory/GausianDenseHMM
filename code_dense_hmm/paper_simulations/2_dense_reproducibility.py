@@ -220,7 +220,7 @@ if __name__ == "__main__":
     result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
 
-    experiment = [eval_multiple(n, d, T) for _ in range(1)]  # TODO
+    experiment = [eval_multiple(n, d, T) for _ in range(10)]  # TODO
     print(experiment)
     with open(f"{result_dir}/n_{n}_T{T}_d{d}_result_multiple.pkl", 'wb') as f:
         pickle.dump(experiment, f)
