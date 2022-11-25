@@ -871,7 +871,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 elif self.n_features == 2:
                     if self.covariance_type == "full":
                         mvn = tfp.distributions.MultivariateNormalTriL(means_cooc, covars_cooc)
-                        mvn_sample = mvn.sample(100000,,
+                        mvn_sample = mvn.sample(100000, seed=2022)
                         B_scalars_tmp = tf.map_fn(
                             lambda n: tf.reduce_mean(tf.cast(tf.reduce_all(mvn_sample <= n, axis=-1), mvn.dtype),
                                                      axis=0), self.discrete_nodes)
