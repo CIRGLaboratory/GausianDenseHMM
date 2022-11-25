@@ -1,4 +1,4 @@
-from model_gausian_2d_tf2 import GaussianDenseHMM
+from models_gaussian_2d import GaussianDenseHMM
 import numpy as np
 import argparse
 import time
@@ -180,18 +180,19 @@ def eval_model(n_, Y_train, X_train, lengths_):
 
 
 def eval_dense_model(n_, Y_train, X_train, lengths_, d_):
-    nodes, splits, Y_disc = provide_nodes(n_, Y_train)
-    _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
+    # nodes, splits, Y_disc = provide_nodes(n_, Y_train)
+    # _, omega_gt = empirical_coocs(Y_disc.reshape(-1, 1), np.max(Y_disc) + 1, lengths=lengths_)
 
-    model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 10000 * n_, 'cooc_lr': 0.002, 'loss_type': 'abs'}, n_dims=d_,
-                             verbose=True, early_stopping=True, convergence_tol=0.01, covariance_type='diag')
+    model = GaussianDenseHMM(n_hidden_states=n_, mstep_config={'cooc_epochs': 10000 * n_, 'cooc_lr': 0.003, 'loss_type': 'abs'}, n_dims=d_,
+                             verbose=True, early_stopping=False, convergence_tol=0.01, covariance_type='diag')
+
     start = time.time()
     model.fit_coocs(Y_train, lengths_)
     end = time.time()
     ll = model.score(Y_train, lengths_)
     states = model.predict(Y_train, lengths_)
     acc = (find_permutation(states, X_train)[states] == X_train).mean()
-    loss = compute_loss(nodes, splits, n_, omega_gt, model.means_, model.covars_, model.transmat_)
+    loss = compute_loss(model.discrete_nodes, model.splits, n_, model.omega_gt, model.means_, model.covars_, model.transmat_)
     return ll, loss, acc, end - start
 
 
@@ -217,7 +218,7 @@ def eval_multiple(n_, d_, T_):
 if __name__ == "__main__":
     n, d, T = parse_args()
     t = time.localtime()
-    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full"
+    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full-no-early-stop"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
 
     experiment = [eval_multiple(n, d, T) for _ in range(10)]  # TODO
