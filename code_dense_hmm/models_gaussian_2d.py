@@ -871,7 +871,7 @@ class GaussianDenseHMM(GammaGaussianHMM):
                 elif self.n_features == 2:
                     if self.covariance_type == "full":
                         mvn = tfp.distributions.MultivariateNormalTriL(means_cooc, covars_cooc)
-                        mvn_sample = mvn.sample(100000, seed=2022)
+                        mvn_sample = mvn.sample(100000,,
                         B_scalars_tmp = tf.map_fn(
                             lambda n: tf.reduce_mean(tf.cast(tf.reduce_all(mvn_sample <= n, axis=-1), mvn.dtype),
                                                      axis=0), self.discrete_nodes)
@@ -1107,6 +1107,8 @@ class GaussianDenseHMM(GammaGaussianHMM):
 
         gt_omega = gt_omega_emp if gt_omega is None else gt_omega
         log_dict = self._fit_coocs(gt_omega, X, lengths, val_lengths)
+
+        self.gt_omega = gt_omega
 
         log_dict['cooc_logprobs'] = self.score_individual_sequences(X, lengths)[0]
         if val is not None and val_lengths is not None:
