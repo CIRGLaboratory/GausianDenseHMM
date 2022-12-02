@@ -220,7 +220,7 @@ def eval_multiple(n_, d_, T_):
 if __name__ == "__main__":
     n, d, T = parse_args()
     t = time.localtime()
-    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full-no-early-stop"
+    result_dir = f"../../data/benchmark_artificial-{t.tm_year}-{t.tm_mon}-{t.tm_mday}-full-uniform"
     Path(result_dir).mkdir(exist_ok=True, parents=True)
 
     experiment = [eval_multiple(n, d, T) for _ in range(10)]  # TODO
